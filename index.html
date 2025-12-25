@@ -12,6 +12,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- jsPDF from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- pdf-lib for lossless optimization -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 </head>
 
 <body>
@@ -110,23 +112,33 @@
                     <h3>Compression Settings</h3>
 
                     <div class="setting-group">
+                        <label for="compressionMode">Compression Mode</label>
+                        <select id="compressionMode">
+                            <option value="lossless" selected>Lossless - Preserves Text Quality</option>
+                            <option value="lossy">Lossy (Image-based) - Maximum Compression</option>
+                        </select>
+                        <p class="setting-hint" id="modeHint">Optimizes PDF structure without converting to images. Best
+                            for text-heavy PDFs.</p>
+                    </div>
+
+                    <div class="setting-group lossy-only hidden" id="qualityGroup">
                         <label for="qualitySlider">
                             <span>Image Quality</span>
-                            <span class="quality-value" id="qualityValue">Balanced (70%)</span>
+                            <span class="quality-value" id="qualityValue">Balanced (60%)</span>
                         </label>
-                        <input type="range" id="qualitySlider" min="30" max="95" value="70" step="5">
+                        <input type="range" id="qualitySlider" min="30" max="95" value="60" step="5">
                         <div class="slider-labels">
                             <span>Smaller File</span>
                             <span>Better Quality</span>
                         </div>
                     </div>
 
-                    <div class="setting-group">
+                    <div class="setting-group lossy-only hidden" id="dpiGroup">
                         <label for="dpiSelect">Resolution (DPI)</label>
                         <select id="dpiSelect">
                             <option value="72">72 DPI - Smallest File</option>
-                            <option value="96">96 DPI - Web/Email</option>
-                            <option value="120" selected>120 DPI - Balanced</option>
+                            <option value="96" selected>96 DPI - Web/Email (Recommended)</option>
+                            <option value="120">120 DPI - Balanced</option>
                             <option value="150">150 DPI - Good Quality</option>
                             <option value="200">200 DPI - High Quality</option>
                             <option value="300">300 DPI - Print Quality (Clearest)</option>
@@ -189,6 +201,8 @@
                     <div class="savings-badge" id="savingsBadge">
                         <span>65% smaller</span>
                     </div>
+
+                    <p class="result-tip hidden" id="resultTip"></p>
 
                     <div class="action-buttons">
                         <button class="preview-btn" id="previewBtn">

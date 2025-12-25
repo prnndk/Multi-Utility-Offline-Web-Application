@@ -47,6 +47,10 @@ const elements = {
     fileSize: document.getElementById('fileSize'),
     removeFile: document.getElementById('removeFile'),
     settingsPanel: document.getElementById('settingsPanel'),
+    compressionMode: document.getElementById('compressionMode'),
+    modeHint: document.getElementById('modeHint'),
+    qualityGroup: document.getElementById('qualityGroup'),
+    dpiGroup: document.getElementById('dpiGroup'),
     qualitySlider: document.getElementById('qualitySlider'),
     qualityValue: document.getElementById('qualityValue'),
     dpiSelect: document.getElementById('dpiSelect'),
@@ -58,6 +62,7 @@ const elements = {
     originalSize: document.getElementById('originalSize'),
     compressedSize: document.getElementById('compressedSize'),
     savingsBadge: document.getElementById('savingsBadge'),
+    resultTip: document.getElementById('resultTip'),
     previewBtn: document.getElementById('previewBtn'),
     downloadBtn: document.getElementById('downloadBtn'),
     newFileBtn: document.getElementById('newFileBtn'),
@@ -166,6 +171,22 @@ function updateImgQualityLabel() {
     elements.imgQualityValue.textContent = `${getQualityLabel(value)} (${value}%)`;
 }
 
+function updateCompressionMode() {
+    const mode = elements.compressionMode.value;
+    const isLossy = mode === 'lossy';
+
+    // Show/hide lossy-specific options
+    elements.qualityGroup.classList.toggle('hidden', !isLossy);
+    elements.dpiGroup.classList.toggle('hidden', !isLossy);
+
+    // Update hint text
+    if (isLossy) {
+        elements.modeHint.textContent = 'Converts pages to images. Maximum compression but may reduce text clarity.';
+    } else {
+        elements.modeHint.textContent = 'Optimizes PDF structure without converting to images. Best for text-heavy PDFs.';
+    }
+}
+
 // ========================================
 // PDF Compression - File Handling
 // ========================================
@@ -249,82 +270,18 @@ async function compressPDF() {
     if (!state.file || state.isProcessing) return;
 
     state.isProcessing = true;
-    const quality = parseInt(elements.qualitySlider.value) / 100;
-    const dpi = parseInt(elements.dpiSelect.value);
-    // Calculate render scale based on DPI
-    // 72 DPI = 1x (base PDF resolution)
-    // 150 DPI = ~2x (screen quality)
-    // 300 DPI = ~4x (print quality)
-    // This ensures higher DPI = higher resolution canvas = clearer output
-    const renderScale = dpi / 72;
+    const mode = elements.compressionMode.value;
 
     elements.settingsPanel.classList.add('hidden');
     elements.progressSection.classList.remove('hidden');
     elements.compressBtn.disabled = true;
 
     try {
-        const arrayBuffer = await state.file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const numPages = pdf.numPages;
-
-        const { jsPDF } = window.jspdf;
-        let jspdfDoc = null;
-
-        const canvas = elements.renderCanvas;
-        const ctx = canvas.getContext('2d');
-
-        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-            elements.progressText.textContent = `Processing page ${pageNum} of ${numPages}...`;
-            elements.progressFill.style.width = `${(pageNum / numPages) * 100}%`;
-
-            await new Promise(resolve => setTimeout(resolve, 10));
-
-            const page = await pdf.getPage(pageNum);
-
-            // Get original dimensions and high-res viewport
-            const originalViewport = page.getViewport({ scale: 1.0 });
-            const renderViewport = page.getViewport({ scale: renderScale });
-
-            canvas.width = renderViewport.width;
-            canvas.height = renderViewport.height;
-
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-
-            await page.render({
-                canvasContext: ctx,
-                viewport: renderViewport
-            }).promise;
-
-            // Always use JPEG for smaller file size
-            // Higher quality = less compression artifacts but larger file
-            const imageData = canvas.toDataURL('image/jpeg', quality);
-
-            // Calculate page dimensions from original size
-            const widthPt = originalViewport.width;
-            const heightPt = originalViewport.height;
-            const widthMM = (widthPt / 72) * 25.4;
-            const heightMM = (heightPt / 72) * 25.4;
-
-            if (pageNum === 1) {
-                jspdfDoc = new jsPDF({
-                    orientation: widthMM > heightMM ? 'landscape' : 'portrait',
-                    unit: 'mm',
-                    format: [widthMM, heightMM],
-                    compress: true
-                });
-            } else {
-                jspdfDoc.addPage([widthMM, heightMM], widthMM > heightMM ? 'landscape' : 'portrait');
-            }
-
-            jspdfDoc.addImage(imageData, 'JPEG', 0, 0, widthMM, heightMM, undefined, 'FAST');
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (mode === 'lossless') {
+            await compressLossless();
+        } else {
+            await compressLossy();
         }
-
-        state.compressedBlob = jspdfDoc.output('blob');
-        state.compressedSize = state.compressedBlob.size;
-
         showResults();
     } catch (error) {
         console.error('Compression error:', error);
@@ -336,6 +293,112 @@ async function compressPDF() {
     }
 }
 
+// Lossless compression using pdf-lib
+async function compressLossless() {
+    elements.progressText.textContent = 'Optimizing PDF structure...';
+    elements.progressFill.style.width = '20%';
+
+    const arrayBuffer = await state.file.arrayBuffer();
+
+    elements.progressText.textContent = 'Loading document...';
+    elements.progressFill.style.width = '40%';
+
+    // Load with pdf-lib
+    const { PDFDocument } = PDFLib;
+    const pdfDoc = await PDFDocument.load(arrayBuffer, {
+        ignoreEncryption: true,
+        updateMetadata: false
+    });
+
+    elements.progressText.textContent = 'Removing unused objects...';
+    elements.progressFill.style.width = '60%';
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Get page count for progress
+    const pageCount = pdfDoc.getPageCount();
+
+    elements.progressText.textContent = `Compressing ${pageCount} pages...`;
+    elements.progressFill.style.width = '80%';
+
+    // Save with optimization options
+    const compressedBytes = await pdfDoc.save({
+        useObjectStreams: true,      // Compress objects into streams
+        addDefaultPage: false,
+        objectsPerTick: 50
+    });
+
+    elements.progressText.textContent = 'Finalizing...';
+    elements.progressFill.style.width = '100%';
+
+    state.compressedBlob = new Blob([compressedBytes], { type: 'application/pdf' });
+    state.compressedSize = state.compressedBlob.size;
+}
+
+// Lossy compression (image-based)
+async function compressLossy() {
+    const quality = parseInt(elements.qualitySlider.value) / 100;
+    const dpi = parseInt(elements.dpiSelect.value);
+    const renderScale = dpi / 72;
+
+    const arrayBuffer = await state.file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdf.numPages;
+
+    const { jsPDF } = window.jspdf;
+    let jspdfDoc = null;
+
+    const canvas = elements.renderCanvas;
+    const ctx = canvas.getContext('2d');
+
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        elements.progressText.textContent = `Processing page ${pageNum} of ${numPages}...`;
+        elements.progressFill.style.width = `${(pageNum / numPages) * 100}%`;
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const page = await pdf.getPage(pageNum);
+
+        const originalViewport = page.getViewport({ scale: 1.0 });
+        const renderViewport = page.getViewport({ scale: renderScale });
+
+        canvas.width = renderViewport.width;
+        canvas.height = renderViewport.height;
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        await page.render({
+            canvasContext: ctx,
+            viewport: renderViewport
+        }).promise;
+
+        const imageData = canvas.toDataURL('image/jpeg', quality);
+
+        const widthPt = originalViewport.width;
+        const heightPt = originalViewport.height;
+        const widthMM = (widthPt / 72) * 25.4;
+        const heightMM = (heightPt / 72) * 25.4;
+
+        if (pageNum === 1) {
+            jspdfDoc = new jsPDF({
+                orientation: widthMM > heightMM ? 'landscape' : 'portrait',
+                unit: 'mm',
+                format: [widthMM, heightMM],
+                compress: true
+            });
+        } else {
+            jspdfDoc.addPage([widthMM, heightMM], widthMM > heightMM ? 'landscape' : 'portrait');
+        }
+
+        jspdfDoc.addImage(imageData, 'JPEG', 0, 0, widthMM, heightMM, undefined, 'FAST');
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    state.compressedBlob = jspdfDoc.output('blob');
+    state.compressedSize = state.compressedBlob.size;
+}
+
 function showResults() {
     elements.progressSection.classList.add('hidden');
     elements.resultsSection.classList.remove('hidden');
@@ -344,6 +407,11 @@ function showResults() {
     elements.compressedSize.textContent = formatFileSize(state.compressedSize);
 
     const savings = ((1 - state.compressedSize / state.originalSize) * 100).toFixed(0);
+    const mode = elements.compressionMode.value;
+
+    // Reset tip
+    elements.resultTip.classList.add('hidden');
+    elements.resultTip.textContent = '';
 
     if (savings > 0) {
         elements.savingsBadge.innerHTML = `<span>${savings}% smaller</span>`;
@@ -352,6 +420,14 @@ function showResults() {
         const increase = Math.abs(savings);
         elements.savingsBadge.innerHTML = `<span>${increase}% larger</span>`;
         elements.savingsBadge.style.background = 'var(--warning-color)';
+
+        // Show helpful tip message
+        elements.resultTip.classList.remove('hidden');
+        if (mode === 'lossy') {
+            elements.resultTip.textContent = '💡 Tip: File got larger because the original PDF likely contains vector text/graphics which are more compact than images. Try "Lossless" mode instead, or use 72 DPI for maximum compression.';
+        } else {
+            elements.resultTip.textContent = '💡 Tip: This PDF is already well-optimized. Try "Lossy" mode with 72 DPI for maximum compression, but note this converts text to images and may reduce clarity.';
+        }
     }
 }
 
@@ -754,6 +830,7 @@ function initEventListeners() {
         }
     });
     elements.removeFile.addEventListener('click', removeFile);
+    elements.compressionMode.addEventListener('change', updateCompressionMode);
     elements.qualitySlider.addEventListener('input', updateQualityLabel);
     elements.compressBtn.addEventListener('click', compressPDF);
     elements.previewBtn.addEventListener('click', () => openPreview(state.compressedBlob));

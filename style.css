@@ -424,6 +424,13 @@ body {
     font-weight: 600;
 }
 
+.setting-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+    line-height: 1.4;
+}
+
 /* Custom Range Slider */
 input[type="range"] {
     width: 100%;
@@ -432,6 +439,7 @@ input[type="range"] {
     border-radius: 0.25rem;
     outline: none;
     -webkit-appearance: none;
+    appearance: none;
     cursor: pointer;
 }
 
@@ -888,6 +896,17 @@ select:focus {
     50% {
         transform: scale(1.05);
     }
+}
+
+.result-tip {
+    font-size: 0.8125rem;
+    color: var(--warning-color);
+    background: rgba(245, 158, 11, 0.1);
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1rem;
+    line-height: 1.5;
+    text-align: left;
 }
 
 .action-buttons {
