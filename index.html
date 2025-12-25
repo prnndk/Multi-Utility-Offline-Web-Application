@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Privacy-First PDF Compressor - Compress PDF files 100% client-side, no data sent to servers.">
+    <title>PDF Compressor - Privacy First, Offline Ready</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- PDF.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- jsPDF from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <path d="M12 18v-6"></path>
+                    <path d="M9 15l3 3 3-3"></path>
+                </svg>
+                <h1>PDF Compressor</h1>
+            </div>
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Drop Zone -->
+            <div class="drop-zone" id="dropZone">
+                <input type="file" id="fileInput" accept=".pdf" hidden>
+                <div class="drop-zone-content">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <h2>Drop your PDF here</h2>
+                    <p>or click to browse</p>
+                    <span class="file-types">Supports PDF files up to 100MB</span>
+                </div>
+            </div>
+
+            <!-- File Info (shown after file selection) -->
+            <div class="file-info hidden" id="fileInfo">
+                <div class="file-card">
+                    <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    <div class="file-details">
+                        <h3 id="fileName">document.pdf</h3>
+                        <p id="fileSize">2.5 MB</p>
+                    </div>
+                    <button class="remove-file" id="removeFile" aria-label="Remove file">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div class="settings-panel hidden" id="settingsPanel">
+                <h3>Compression Settings</h3>
+
+                <div class="setting-group">
+                    <label for="qualitySlider">
+                        <span>Image Quality</span>
+                        <span class="quality-value" id="qualityValue">Medium (60%)</span>
+                    </label>
+                    <input type="range" id="qualitySlider" min="20" max="80" value="50" step="10">
+                    <div class="slider-labels">
+                        <span>Smaller</span>
+                        <span>Higher Quality</span>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label for="dpiSelect">Resolution (DPI)</label>
+                    <select id="dpiSelect">
+                        <option value="72" selected>72 DPI - Maximum Compression</option>
+                        <option value="96">96 DPI - Balanced</option>
+                        <option value="120">120 DPI - Good Quality</option>
+                        <option value="150">150 DPI - High Quality</option>
+                    </select>
+                </div>
+
+                <button class="compress-btn" id="compressBtn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="4 14 10 14 10 20"></polyline>
+                        <polyline points="20 10 14 10 14 4"></polyline>
+                        <line x1="14" y1="10" x2="21" y2="3"></line>
+                        <line x1="3" y1="21" x2="10" y2="14"></line>
+                    </svg>
+                    Compress PDF
+                </button>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="progress-section hidden" id="progressSection">
+                <div class="progress-header">
+                    <svg class="spinner" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"
+                            stroke-dasharray="60 40"></circle>
+                    </svg>
+                    <span id="progressText">Processing page 1 of 10...</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-section hidden" id="resultsSection">
+                <div class="results-header">
+                    <svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <h3>Compression Complete!</h3>
+                </div>
+
+                <div class="size-comparison">
+                    <div class="size-box original">
+                        <span class="size-label">Original</span>
+                        <span class="size-value" id="originalSize">5.2 MB</span>
+                    </div>
+                    <div class="arrow">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </div>
+                    <div class="size-box compressed">
+                        <span class="size-label">Compressed</span>
+                        <span class="size-value" id="compressedSize">1.8 MB</span>
+                    </div>
+                </div>
+
+                <div class="savings-badge" id="savingsBadge">
+                    <span>65% smaller</span>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="download-btn" id="downloadBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Download Compressed PDF
+                    </button>
+                    <button class="new-file-btn" id="newFileBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Compress Another
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Privacy Footer -->
+        <footer class="footer">
+            <div class="privacy-notice">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Files are processed entirely on your device. No data is sent to any server.</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Hidden Canvas for PDF Rendering -->
+    <canvas id="renderCanvas" style="display: none;"></canvas>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
