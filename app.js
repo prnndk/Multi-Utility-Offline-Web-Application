@@ -1,23 +1,45 @@
 /**
- * Privacy-First PDF Compressor
- * 100% Client-Side PDF Compression using pdf.js and jsPDF
+ * Privacy-First PDF Tools
+ * 100% Client-Side PDF Compression and Image to PDF Conversion
  */
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// Global state
+// ========================================
+// Global State
+// ========================================
 const state = {
+    // PDF Compression
     file: null,
     compressedBlob: null,
     originalSize: 0,
     compressedSize: 0,
-    isProcessing: false
+    isProcessing: false,
+
+    // Image to PDF
+    images: [],
+    imagePdfBlob: null,
+
+    // Preview
+    previewPdf: null,
+    currentPage: 1,
+    totalPages: 1
 };
 
+// ========================================
 // DOM Elements
+// ========================================
 const elements = {
+    // Theme
     themeToggle: document.getElementById('themeToggle'),
+
+    // Tabs
+    tabBtns: document.querySelectorAll('.tab-btn'),
+    compressTab: document.getElementById('compressTab'),
+    imagesTab: document.getElementById('imagesTab'),
+
+    // PDF Compression
     dropZone: document.getElementById('dropZone'),
     fileInput: document.getElementById('fileInput'),
     fileInfo: document.getElementById('fileInfo'),
@@ -36,9 +58,40 @@ const elements = {
     originalSize: document.getElementById('originalSize'),
     compressedSize: document.getElementById('compressedSize'),
     savingsBadge: document.getElementById('savingsBadge'),
+    previewBtn: document.getElementById('previewBtn'),
     downloadBtn: document.getElementById('downloadBtn'),
     newFileBtn: document.getElementById('newFileBtn'),
-    renderCanvas: document.getElementById('renderCanvas')
+    renderCanvas: document.getElementById('renderCanvas'),
+
+    // Image to PDF
+    imageDropZone: document.getElementById('imageDropZone'),
+    imageInput: document.getElementById('imageInput'),
+    imageList: document.getElementById('imageList'),
+    imageCount: document.getElementById('imageCount'),
+    imageGrid: document.getElementById('imageGrid'),
+    addMoreBtn: document.getElementById('addMoreBtn'),
+    imgQualitySlider: document.getElementById('imgQualitySlider'),
+    imgQualityValue: document.getElementById('imgQualityValue'),
+    pageSizeSelect: document.getElementById('pageSizeSelect'),
+    createPdfBtn: document.getElementById('createPdfBtn'),
+    clearImagesBtn: document.getElementById('clearImagesBtn'),
+    imageProgressSection: document.getElementById('imageProgressSection'),
+    imageProgressText: document.getElementById('imageProgressText'),
+    imageProgressFill: document.getElementById('imageProgressFill'),
+    imageResultsSection: document.getElementById('imageResultsSection'),
+    imagePdfSize: document.getElementById('imagePdfSize'),
+    imagePreviewBtn: document.getElementById('imagePreviewBtn'),
+    imageDownloadBtn: document.getElementById('imageDownloadBtn'),
+    imageNewBtn: document.getElementById('imageNewBtn'),
+
+    // Modal
+    previewModal: document.getElementById('previewModal'),
+    modalOverlay: document.getElementById('modalOverlay'),
+    closeModal: document.getElementById('closeModal'),
+    prevPageBtn: document.getElementById('prevPageBtn'),
+    nextPageBtn: document.getElementById('nextPageBtn'),
+    pageIndicator: document.getElementById('pageIndicator'),
+    previewCanvas: document.getElementById('previewCanvas')
 };
 
 // ========================================
@@ -60,6 +113,32 @@ function toggleTheme() {
 }
 
 // ========================================
+// Tab Navigation
+// ========================================
+function initTabs() {
+    elements.tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.dataset.tab;
+
+            // Update active tab button
+            elements.tabBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Show corresponding content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            if (tabName === 'compress') {
+                elements.compressTab.classList.add('active');
+            } else if (tabName === 'images') {
+                elements.imagesTab.classList.add('active');
+            }
+        });
+    });
+}
+
+// ========================================
 // Utility Functions
 // ========================================
 function formatFileSize(bytes) {
@@ -71,10 +150,11 @@ function formatFileSize(bytes) {
 }
 
 function getQualityLabel(value) {
-    if (value <= 30) return 'Maximum Compression';
-    if (value <= 50) return 'Medium';
-    if (value <= 65) return 'High';
-    return 'Best Quality';
+    if (value <= 40) return 'Maximum Compression';
+    if (value <= 60) return 'Medium Quality';
+    if (value <= 80) return 'Good Quality';
+    if (value < 90) return 'High Quality';
+    return 'Best Quality (PNG - Lossless)';
 }
 
 function updateQualityLabel() {
@@ -82,8 +162,13 @@ function updateQualityLabel() {
     elements.qualityValue.textContent = `${getQualityLabel(value)} (${value}%)`;
 }
 
+function updateImgQualityLabel() {
+    const value = parseInt(elements.imgQualitySlider.value);
+    elements.imgQualityValue.textContent = `${getQualityLabel(value)} (${value}%)`;
+}
+
 // ========================================
-// File Handling
+// PDF Compression - File Handling
 // ========================================
 function handleFileSelect(file) {
     if (!file || file.type !== 'application/pdf') {
@@ -91,7 +176,7 @@ function handleFileSelect(file) {
         return;
     }
 
-    if (file.size > 100 * 1024 * 1024) { // 100MB limit
+    if (file.size > 100 * 1024 * 1024) {
         alert('File size exceeds 100MB limit.');
         return;
     }
@@ -99,7 +184,6 @@ function handleFileSelect(file) {
     state.file = file;
     state.originalSize = file.size;
 
-    // Update UI
     elements.fileName.textContent = file.name;
     elements.fileSize.textContent = formatFileSize(file.size);
 
@@ -124,7 +208,7 @@ function removeFile() {
 }
 
 // ========================================
-// Drag & Drop
+// Drag & Drop for PDF
 // ========================================
 function initDragDrop() {
     const dropZone = elements.dropZone;
@@ -169,84 +253,79 @@ async function compressPDF() {
     const quality = parseInt(elements.qualitySlider.value) / 100;
     const dpi = parseInt(elements.dpiSelect.value);
 
-    // Use a much more aggressive scale for actual compression
-    // Lower scale = smaller canvas = smaller image = smaller PDF
-    const baseScale = dpi / 150; // Use 150 as reference instead of 72
-    const compressionFactor = 0.7; // Additional reduction factor
-    const scale = baseScale * compressionFactor;
+    // Calculate render scale for better quality
+    const renderScale = dpi / 72;
 
-    // Show progress, hide settings
     elements.settingsPanel.classList.add('hidden');
     elements.progressSection.classList.remove('hidden');
     elements.compressBtn.disabled = true;
 
     try {
-        // Read file as ArrayBuffer
         const arrayBuffer = await state.file.arrayBuffer();
-
-        // Load PDF with pdf.js
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const numPages = pdf.numPages;
 
-        // Initialize jsPDF
         const { jsPDF } = window.jspdf;
         let jspdfDoc = null;
 
         const canvas = elements.renderCanvas;
         const ctx = canvas.getContext('2d');
 
-        // Process each page
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-            // Update progress
             elements.progressText.textContent = `Processing page ${pageNum} of ${numPages}...`;
             elements.progressFill.style.width = `${(pageNum / numPages) * 100}%`;
 
-            // Give UI time to update
             await new Promise(resolve => setTimeout(resolve, 10));
 
-            // Get page
             const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale });
 
-            // Set canvas dimensions
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
+            // Get original dimensions and high-res viewport
+            const originalViewport = page.getViewport({ scale: 1.0 });
+            const renderViewport = page.getViewport({ scale: renderScale });
 
-            // Render page to canvas
+            canvas.width = renderViewport.width;
+            canvas.height = renderViewport.height;
+
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
             await page.render({
                 canvasContext: ctx,
-                viewport: viewport
+                viewport: renderViewport
             }).promise;
 
-            // Convert canvas to JPEG data URL
-            const imageData = canvas.toDataURL('image/jpeg', quality);
+            // Use PNG for high quality to avoid JPEG artifacts
+            const useHighQuality = quality >= 0.9;
+            const imageData = useHighQuality
+                ? canvas.toDataURL('image/png')
+                : canvas.toDataURL('image/jpeg', quality);
 
-            // Calculate dimensions in mm for jsPDF (assuming 25.4mm per inch)
-            const widthMM = (viewport.width / dpi) * 25.4;
-            const heightMM = (viewport.height / dpi) * 25.4;
+            // Calculate page dimensions from original size
+            const widthPt = originalViewport.width;
+            const heightPt = originalViewport.height;
+            const widthMM = (widthPt / 72) * 25.4;
+            const heightMM = (heightPt / 72) * 25.4;
 
-            // Add page to jsPDF
             if (pageNum === 1) {
                 jspdfDoc = new jsPDF({
                     orientation: widthMM > heightMM ? 'landscape' : 'portrait',
                     unit: 'mm',
-                    format: [widthMM, heightMM]
+                    format: [widthMM, heightMM],
+                    compress: true
                 });
             } else {
                 jspdfDoc.addPage([widthMM, heightMM], widthMM > heightMM ? 'landscape' : 'portrait');
             }
 
-            jspdfDoc.addImage(imageData, 'JPEG', 0, 0, widthMM, heightMM);
+            const imgFormat = useHighQuality ? 'PNG' : 'JPEG';
+            jspdfDoc.addImage(imageData, imgFormat, 0, 0, widthMM, heightMM, undefined, 'FAST');
 
-            // Clear canvas for memory management
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
 
-        // Generate compressed PDF blob
         state.compressedBlob = jspdfDoc.output('blob');
         state.compressedSize = state.compressedBlob.size;
 
-        // Show results
         showResults();
     } catch (error) {
         console.error('Compression error:', error);
@@ -298,33 +377,414 @@ function startNew() {
 }
 
 // ========================================
+// Image to PDF - Image Handling
+// ========================================
+function initImageDragDrop() {
+    const dropZone = elements.imageDropZone;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
+    });
+
+    dropZone.addEventListener('drop', handleImageDrop, false);
+    dropZone.addEventListener('click', () => elements.imageInput.click());
+}
+
+function handleImageDrop(e) {
+    const dt = e.dataTransfer;
+    const files = Array.from(dt.files).filter(f => f.type.startsWith('image/'));
+    addImages(files);
+}
+
+function handleImageSelect(e) {
+    const files = Array.from(e.target.files);
+    addImages(files);
+    e.target.value = '';
+}
+
+function addImages(files) {
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            state.images.push({
+                file: file,
+                dataUrl: e.target.result,
+                name: file.name
+            });
+            updateImageGrid();
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function updateImageGrid() {
+    elements.imageGrid.innerHTML = '';
+    elements.imageCount.textContent = state.images.length;
+
+    if (state.images.length === 0) {
+        elements.imageDropZone.classList.remove('hidden');
+        elements.imageList.classList.add('hidden');
+        elements.imageResultsSection.classList.add('hidden');
+        return;
+    }
+
+    elements.imageDropZone.classList.add('hidden');
+    elements.imageList.classList.remove('hidden');
+
+    state.images.forEach((img, index) => {
+        const item = document.createElement('div');
+        item.className = 'image-item';
+        item.draggable = true;
+        item.dataset.index = index;
+
+        item.innerHTML = `
+            <img src="${img.dataUrl}" alt="${img.name}">
+            <span class="image-number">${index + 1}</span>
+            <button class="remove-image" onclick="removeImage(${index})">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        `;
+
+        // Drag events for reordering
+        item.addEventListener('dragstart', handleImageDragStart);
+        item.addEventListener('dragover', handleImageDragOver);
+        item.addEventListener('drop', handleImageDropReorder);
+        item.addEventListener('dragend', handleImageDragEnd);
+
+        elements.imageGrid.appendChild(item);
+    });
+}
+
+let draggedImageIndex = null;
+
+function handleImageDragStart(e) {
+    draggedImageIndex = parseInt(e.target.dataset.index);
+    e.target.classList.add('dragging');
+}
+
+function handleImageDragOver(e) {
+    e.preventDefault();
+}
+
+function handleImageDropReorder(e) {
+    e.preventDefault();
+    const targetIndex = parseInt(e.currentTarget.dataset.index);
+
+    if (draggedImageIndex !== null && draggedImageIndex !== targetIndex) {
+        const [removed] = state.images.splice(draggedImageIndex, 1);
+        state.images.splice(targetIndex, 0, removed);
+        updateImageGrid();
+    }
+}
+
+function handleImageDragEnd(e) {
+    e.target.classList.remove('dragging');
+    draggedImageIndex = null;
+}
+
+function removeImage(index) {
+    state.images.splice(index, 1);
+    updateImageGrid();
+}
+
+function clearAllImages() {
+    state.images = [];
+    state.imagePdfBlob = null;
+    updateImageGrid();
+}
+
+// ========================================
+// Create PDF from Images
+// ========================================
+async function createPdfFromImages() {
+    if (state.images.length === 0 || state.isProcessing) return;
+
+    state.isProcessing = true;
+    const quality = parseInt(elements.imgQualitySlider.value) / 100;
+    const pageSize = elements.pageSizeSelect.value;
+
+    elements.imageList.classList.add('hidden');
+    elements.imageProgressSection.classList.remove('hidden');
+
+    try {
+        const { jsPDF } = window.jspdf;
+        let jspdfDoc = null;
+
+        // Page dimensions in mm
+        const pageSizes = {
+            a4: { width: 210, height: 297 },
+            letter: { width: 215.9, height: 279.4 },
+            legal: { width: 215.9, height: 355.6 }
+        };
+
+        for (let i = 0; i < state.images.length; i++) {
+            elements.imageProgressText.textContent = `Processing image ${i + 1} of ${state.images.length}...`;
+            elements.imageProgressFill.style.width = `${((i + 1) / state.images.length) * 100}%`;
+
+            await new Promise(resolve => setTimeout(resolve, 10));
+
+            const img = state.images[i];
+
+            // Load image to get dimensions
+            const imgElement = await loadImage(img.dataUrl);
+            const imgWidth = imgElement.width;
+            const imgHeight = imgElement.height;
+
+            let pageWidth, pageHeight, imgX, imgY, imgFinalWidth, imgFinalHeight;
+
+            if (pageSize === 'fit') {
+                // Fit page to image (convert pixels to mm at 96 DPI)
+                pageWidth = (imgWidth / 96) * 25.4;
+                pageHeight = (imgHeight / 96) * 25.4;
+                imgX = 0;
+                imgY = 0;
+                imgFinalWidth = pageWidth;
+                imgFinalHeight = pageHeight;
+            } else {
+                // Fit image to page with margins
+                const pg = pageSizes[pageSize];
+                pageWidth = pg.width;
+                pageHeight = pg.height;
+                const margin = 10; // 10mm margin
+
+                const availWidth = pageWidth - (margin * 2);
+                const availHeight = pageHeight - (margin * 2);
+
+                const imgRatio = imgWidth / imgHeight;
+                const availRatio = availWidth / availHeight;
+
+                if (imgRatio > availRatio) {
+                    imgFinalWidth = availWidth;
+                    imgFinalHeight = availWidth / imgRatio;
+                } else {
+                    imgFinalHeight = availHeight;
+                    imgFinalWidth = availHeight * imgRatio;
+                }
+
+                imgX = margin + (availWidth - imgFinalWidth) / 2;
+                imgY = margin + (availHeight - imgFinalHeight) / 2;
+            }
+
+            // Compress image
+            const compressedDataUrl = compressImage(imgElement, quality);
+
+            if (i === 0) {
+                jspdfDoc = new jsPDF({
+                    orientation: pageWidth > pageHeight ? 'landscape' : 'portrait',
+                    unit: 'mm',
+                    format: [pageWidth, pageHeight],
+                    compress: true
+                });
+            } else {
+                jspdfDoc.addPage([pageWidth, pageHeight], pageWidth > pageHeight ? 'landscape' : 'portrait');
+            }
+
+            jspdfDoc.addImage(compressedDataUrl, 'JPEG', imgX, imgY, imgFinalWidth, imgFinalHeight, undefined, 'FAST');
+        }
+
+        state.imagePdfBlob = jspdfDoc.output('blob');
+
+        showImageResults();
+    } catch (error) {
+        console.error('Image to PDF error:', error);
+        alert('An error occurred while creating the PDF. Please try again.');
+        elements.imageProgressSection.classList.add('hidden');
+        elements.imageList.classList.remove('hidden');
+    } finally {
+        state.isProcessing = false;
+    }
+}
+
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+function compressImage(img, quality) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Limit max dimensions for compression
+    const maxDim = 2000;
+    let width = img.width;
+    let height = img.height;
+
+    if (width > maxDim || height > maxDim) {
+        if (width > height) {
+            height = (height / width) * maxDim;
+            width = maxDim;
+        } else {
+            width = (width / height) * maxDim;
+            height = maxDim;
+        }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, width, height);
+
+    return canvas.toDataURL('image/jpeg', quality);
+}
+
+function showImageResults() {
+    elements.imageProgressSection.classList.add('hidden');
+    elements.imageResultsSection.classList.remove('hidden');
+    elements.imagePdfSize.textContent = formatFileSize(state.imagePdfBlob.size);
+}
+
+function downloadImagePdf() {
+    if (!state.imagePdfBlob) return;
+
+    const fileName = `images_to_pdf_${Date.now()}.pdf`;
+    const url = URL.createObjectURL(state.imagePdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function startNewImagePdf() {
+    clearAllImages();
+    elements.imageResultsSection.classList.add('hidden');
+}
+
+// ========================================
+// PDF Preview Modal
+// ========================================
+async function openPreview(blob) {
+    if (!blob) return;
+
+    elements.previewModal.classList.remove('hidden');
+
+    try {
+        const arrayBuffer = await blob.arrayBuffer();
+        state.previewPdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        state.totalPages = state.previewPdf.numPages;
+        state.currentPage = 1;
+
+        updatePageNavigation();
+        await renderPreviewPage(state.currentPage);
+    } catch (error) {
+        console.error('Preview error:', error);
+        alert('Could not preview the PDF.');
+        closePreview();
+    }
+}
+
+async function renderPreviewPage(pageNum) {
+    if (!state.previewPdf) return;
+
+    const page = await state.previewPdf.getPage(pageNum);
+    const canvas = elements.previewCanvas;
+    const ctx = canvas.getContext('2d');
+
+    // Scale to fit modal
+    const containerWidth = 700;
+    const viewport = page.getViewport({ scale: 1 });
+    const scale = containerWidth / viewport.width;
+    const scaledViewport = page.getViewport({ scale });
+
+    canvas.width = scaledViewport.width;
+    canvas.height = scaledViewport.height;
+
+    await page.render({
+        canvasContext: ctx,
+        viewport: scaledViewport
+    }).promise;
+}
+
+function updatePageNavigation() {
+    elements.pageIndicator.textContent = `Page ${state.currentPage} of ${state.totalPages}`;
+    elements.prevPageBtn.disabled = state.currentPage <= 1;
+    elements.nextPageBtn.disabled = state.currentPage >= state.totalPages;
+}
+
+function prevPage() {
+    if (state.currentPage > 1) {
+        state.currentPage--;
+        updatePageNavigation();
+        renderPreviewPage(state.currentPage);
+    }
+}
+
+function nextPage() {
+    if (state.currentPage < state.totalPages) {
+        state.currentPage++;
+        updatePageNavigation();
+        renderPreviewPage(state.currentPage);
+    }
+}
+
+function closePreview() {
+    elements.previewModal.classList.add('hidden');
+    state.previewPdf = null;
+}
+
+// ========================================
 // Event Listeners
 // ========================================
 function initEventListeners() {
-    // Theme toggle
+    // Theme
     elements.themeToggle.addEventListener('click', toggleTheme);
 
-    // File input
+    // PDF Compression
     elements.fileInput.addEventListener('change', (e) => {
         if (e.target.files.length > 0) {
             handleFileSelect(e.target.files[0]);
         }
     });
-
-    // Remove file
     elements.removeFile.addEventListener('click', removeFile);
-
-    // Quality slider
     elements.qualitySlider.addEventListener('input', updateQualityLabel);
-
-    // Compress button
     elements.compressBtn.addEventListener('click', compressPDF);
-
-    // Download button
+    elements.previewBtn.addEventListener('click', () => openPreview(state.compressedBlob));
     elements.downloadBtn.addEventListener('click', downloadCompressed);
-
-    // New file button
     elements.newFileBtn.addEventListener('click', startNew);
+
+    // Image to PDF
+    elements.imageInput.addEventListener('change', handleImageSelect);
+    elements.addMoreBtn.addEventListener('click', () => elements.imageInput.click());
+    elements.imgQualitySlider.addEventListener('input', updateImgQualityLabel);
+    elements.createPdfBtn.addEventListener('click', createPdfFromImages);
+    elements.clearImagesBtn.addEventListener('click', clearAllImages);
+    elements.imagePreviewBtn.addEventListener('click', () => openPreview(state.imagePdfBlob));
+    elements.imageDownloadBtn.addEventListener('click', downloadImagePdf);
+    elements.imageNewBtn.addEventListener('click', startNewImagePdf);
+
+    // Modal
+    elements.modalOverlay.addEventListener('click', closePreview);
+    elements.closeModal.addEventListener('click', closePreview);
+    elements.prevPageBtn.addEventListener('click', prevPage);
+    elements.nextPageBtn.addEventListener('click', nextPage);
+
+    // Keyboard navigation for modal
+    document.addEventListener('keydown', (e) => {
+        if (elements.previewModal.classList.contains('hidden')) return;
+
+        if (e.key === 'Escape') closePreview();
+        if (e.key === 'ArrowLeft') prevPage();
+        if (e.key === 'ArrowRight') nextPage();
+    });
 }
 
 // ========================================
@@ -332,10 +792,16 @@ function initEventListeners() {
 // ========================================
 function init() {
     initTheme();
+    initTabs();
     initDragDrop();
+    initImageDragDrop();
     initEventListeners();
     updateQualityLabel();
+    updateImgQualityLabel();
 }
+
+// Make removeImage available globally for onclick handler
+window.removeImage = removeImage;
 
 // Start the app when DOM is ready
 document.addEventListener('DOMContentLoaded', init);

@@ -16,6 +16,7 @@
     --success-color: #10b981;
     --success-bg: #ecfdf5;
     --warning-color: #f59e0b;
+    --danger-color: #ef4444;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
@@ -50,7 +51,9 @@
 /* ========================================
    Base Styles & Reset
    ======================================== */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
@@ -74,7 +77,7 @@ body {
    App Container
    ======================================== */
 .app-container {
-    max-width: 680px;
+    max-width: 720px;
     margin: 0 auto;
     padding: 2rem 1.5rem;
     min-height: 100vh;
@@ -89,7 +92,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .logo {
@@ -157,6 +160,75 @@ body {
 [data-theme="dark"] .moon-icon {
     opacity: 1;
     transform: rotate(0);
+}
+
+/* ========================================
+   Tab Navigation
+   ======================================== */
+.tab-navigation {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    background: var(--bg-secondary);
+    padding: 0.375rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border-color);
+}
+
+.tab-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: transparent;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.tab-btn.active {
+    background: var(--accent-gradient);
+    color: white;
+    box-shadow: var(--shadow-sm);
+}
+
+.tab-btn svg {
+    width: 1.125rem;
+    height: 1.125rem;
+}
+
+/* ========================================
+   Tab Content
+   ======================================== */
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 /* ========================================
@@ -414,13 +486,20 @@ select {
     background-position: right 1rem center;
 }
 
-select:hover, select:focus {
+select:hover,
+select:focus {
     border-color: var(--accent-primary);
+}
+
+/* Button Group */
+.button-group {
+    display: flex;
+    gap: 0.75rem;
 }
 
 /* Compress Button */
 .compress-btn {
-    width: 100%;
+    flex: 1;
     padding: 1rem 1.5rem;
     background: var(--accent-gradient);
     border: none;
@@ -456,6 +535,165 @@ select:hover, select:focus {
     height: 1.25rem;
 }
 
+/* Clear Button */
+.clear-btn {
+    padding: 1rem 1.25rem;
+    background: transparent;
+    border: 1px solid var(--danger-color);
+    border-radius: 0.75rem;
+    color: var(--danger-color);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.clear-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.clear-btn svg {
+    width: 1.125rem;
+    height: 1.125rem;
+}
+
+/* ========================================
+   Image List
+   ======================================== */
+.image-list {
+    animation: slideIn 0.3s ease;
+}
+
+.image-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.image-list-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.drag-hint {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+
+.add-more-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.add-more-btn:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.add-more-btn svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    padding: 1rem;
+    min-height: 150px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.image-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 2px solid var(--border-color);
+    cursor: grab;
+    transition: all 0.2s ease;
+    background: var(--bg-tertiary);
+}
+
+.image-item:hover {
+    border-color: var(--accent-primary);
+    transform: scale(1.02);
+}
+
+.image-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.image-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-item .image-number {
+    position: absolute;
+    top: 0.25rem;
+    left: 0.25rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: var(--accent-gradient);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.image-item .remove-image {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.image-item:hover .remove-image {
+    opacity: 1;
+}
+
+.image-item .remove-image svg {
+    width: 0.875rem;
+    height: 0.875rem;
+}
+
 /* ========================================
    Progress Section
    ======================================== */
@@ -482,11 +720,17 @@ select:hover, select:focus {
 }
 
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
-#progressText {
+#progressText,
+#imageProgressText {
     font-size: 0.9375rem;
     color: var(--text-secondary);
     font-weight: 500;
@@ -536,15 +780,42 @@ select:hover, select:focus {
 }
 
 @keyframes scaleIn {
-    0% { transform: scale(0); opacity: 0; }
-    60% { transform: scale(1.2); }
-    100% { transform: scale(1); opacity: 1; }
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+
+    60% {
+        transform: scale(1.2);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .results-header h3 {
     font-size: 1.25rem;
     font-weight: 600;
     color: var(--text-primary);
+}
+
+.result-info {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+}
+
+.result-label {
+    color: var(--text-secondary);
+}
+
+.result-value {
+    font-weight: 600;
+    color: var(--success-color);
 }
 
 .size-comparison {
@@ -608,13 +879,46 @@ select:hover, select:focus {
 }
 
 @keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
 }
 
 .action-buttons {
     display: flex;
     gap: 0.75rem;
+}
+
+.preview-btn {
+    padding: 1rem 1.25rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--accent-primary);
+    border-radius: 0.75rem;
+    color: var(--accent-primary);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.preview-btn:hover {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.preview-btn svg {
+    width: 1.25rem;
+    height: 1.25rem;
 }
 
 .download-btn {
@@ -673,6 +977,151 @@ select:hover, select:focus {
 }
 
 /* ========================================
+   Modal
+   ======================================== */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    position: relative;
+    background: var(--bg-secondary);
+    border-radius: 1rem;
+    max-width: 90vw;
+    max-height: 90vh;
+    width: 800px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-lg);
+    animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.modal-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.nav-btn {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.nav-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.nav-btn svg {
+    width: 1.125rem;
+    height: 1.125rem;
+}
+
+#pageIndicator {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    min-width: 100px;
+    text-align: center;
+}
+
+.modal-close {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.modal-close svg {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+
+.modal-body {
+    flex: 1;
+    overflow: auto;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+}
+
+#previewCanvas {
+    max-width: 100%;
+    max-height: 70vh;
+    box-shadow: var(--shadow-lg);
+    background: white;
+}
+
+/* ========================================
    Footer
    ======================================== */
 .footer {
@@ -713,6 +1162,7 @@ select:hover, select:focus {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -729,6 +1179,16 @@ select:hover, select:focus {
 
     .logo h1 {
         font-size: 1.25rem;
+    }
+
+    .tab-btn {
+        font-size: 0.8125rem;
+        padding: 0.625rem 0.75rem;
+    }
+
+    .tab-btn svg {
+        width: 1rem;
+        height: 1rem;
     }
 
     .drop-zone {
@@ -764,6 +1224,26 @@ select:hover, select:focus {
     .privacy-notice {
         flex-direction: column;
         text-align: center;
+    }
+
+    .modal-content {
+        width: 100%;
+        max-height: 85vh;
+    }
+
+    .modal-header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .modal-nav {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .image-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
     }
 }
 

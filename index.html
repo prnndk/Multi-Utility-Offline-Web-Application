@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description"
-        content="Privacy-First PDF Compressor - Compress PDF files 100% client-side, no data sent to servers.">
-    <title>PDF Compressor - Privacy First, Offline Ready</title>
+        content="Privacy-First PDF Tools - Compress PDFs and merge images to PDF, 100% client-side.">
+    <title>PDF Tools - Compress & Merge | Privacy First</title>
     <link rel="stylesheet" href="style.css">
     <!-- PDF.js from CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -25,7 +25,7 @@
                     <path d="M12 18v-6"></path>
                     <path d="M9 15l3 3 3-3"></path>
                 </svg>
-                <h1>PDF Compressor</h1>
+                <h1>PDF Tools</h1>
             </div>
             <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
                 <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -45,141 +45,311 @@
             </button>
         </header>
 
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="compress">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="4 14 10 14 10 20"></polyline>
+                    <polyline points="20 10 14 10 14 4"></polyline>
+                    <line x1="14" y1="10" x2="21" y2="3"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                </svg>
+                Compress PDF
+            </button>
+            <button class="tab-btn" data-tab="images">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                Images to PDF
+            </button>
+        </div>
+
         <!-- Main Content -->
         <main class="main-content">
-            <!-- Drop Zone -->
-            <div class="drop-zone" id="dropZone">
-                <input type="file" id="fileInput" accept=".pdf" hidden>
-                <div class="drop-zone-content">
-                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                    </svg>
-                    <h2>Drop your PDF here</h2>
-                    <p>or click to browse</p>
-                    <span class="file-types">Supports PDF files up to 100MB</span>
-                </div>
-            </div>
-
-            <!-- File Info (shown after file selection) -->
-            <div class="file-info hidden" id="fileInfo">
-                <div class="file-card">
-                    <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                    </svg>
-                    <div class="file-details">
-                        <h3 id="fileName">document.pdf</h3>
-                        <p id="fileSize">2.5 MB</p>
-                    </div>
-                    <button class="remove-file" id="removeFile" aria-label="Remove file">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Settings Panel -->
-            <div class="settings-panel hidden" id="settingsPanel">
-                <h3>Compression Settings</h3>
-
-                <div class="setting-group">
-                    <label for="qualitySlider">
-                        <span>Image Quality</span>
-                        <span class="quality-value" id="qualityValue">Medium (60%)</span>
-                    </label>
-                    <input type="range" id="qualitySlider" min="20" max="80" value="50" step="10">
-                    <div class="slider-labels">
-                        <span>Smaller</span>
-                        <span>Higher Quality</span>
-                    </div>
-                </div>
-
-                <div class="setting-group">
-                    <label for="dpiSelect">Resolution (DPI)</label>
-                    <select id="dpiSelect">
-                        <option value="72" selected>72 DPI - Maximum Compression</option>
-                        <option value="96">96 DPI - Balanced</option>
-                        <option value="120">120 DPI - Good Quality</option>
-                        <option value="150">150 DPI - High Quality</option>
-                    </select>
-                </div>
-
-                <button class="compress-btn" id="compressBtn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="4 14 10 14 10 20"></polyline>
-                        <polyline points="20 10 14 10 14 4"></polyline>
-                        <line x1="14" y1="10" x2="21" y2="3"></line>
-                        <line x1="3" y1="21" x2="10" y2="14"></line>
-                    </svg>
-                    Compress PDF
-                </button>
-            </div>
-
-            <!-- Progress Section -->
-            <div class="progress-section hidden" id="progressSection">
-                <div class="progress-header">
-                    <svg class="spinner" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"
-                            stroke-dasharray="60 40"></circle>
-                    </svg>
-                    <span id="progressText">Processing page 1 of 10...</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill"></div>
-                </div>
-            </div>
-
-            <!-- Results Section -->
-            <div class="results-section hidden" id="resultsSection">
-                <div class="results-header">
-                    <svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
-                    <h3>Compression Complete!</h3>
-                </div>
-
-                <div class="size-comparison">
-                    <div class="size-box original">
-                        <span class="size-label">Original</span>
-                        <span class="size-value" id="originalSize">5.2 MB</span>
-                    </div>
-                    <div class="arrow">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                            <polyline points="12 5 19 12 12 19"></polyline>
-                        </svg>
-                    </div>
-                    <div class="size-box compressed">
-                        <span class="size-label">Compressed</span>
-                        <span class="size-value" id="compressedSize">1.8 MB</span>
-                    </div>
-                </div>
-
-                <div class="savings-badge" id="savingsBadge">
-                    <span>65% smaller</span>
-                </div>
-
-                <div class="action-buttons">
-                    <button class="download-btn" id="downloadBtn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <!-- ========== COMPRESS PDF TAB ========== -->
+            <div class="tab-content active" id="compressTab">
+                <!-- Drop Zone -->
+                <div class="drop-zone" id="dropZone">
+                    <input type="file" id="fileInput" accept=".pdf" hidden>
+                    <div class="drop-zone-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="7 10 12 15 17 10"></polyline>
-                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
                         </svg>
-                        Download Compressed PDF
-                    </button>
-                    <button class="new-file-btn" id="newFileBtn">
+                        <h2>Drop your PDF here</h2>
+                        <p>or click to browse</p>
+                        <span class="file-types">Supports PDF files up to 100MB</span>
+                    </div>
+                </div>
+
+                <!-- File Info -->
+                <div class="file-info hidden" id="fileInfo">
+                    <div class="file-card">
+                        <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                        </svg>
+                        <div class="file-details">
+                            <h3 id="fileName">document.pdf</h3>
+                            <p id="fileSize">2.5 MB</p>
+                        </div>
+                        <button class="remove-file" id="removeFile" aria-label="Remove file">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Settings Panel -->
+                <div class="settings-panel hidden" id="settingsPanel">
+                    <h3>Compression Settings</h3>
+
+                    <div class="setting-group">
+                        <label for="qualitySlider">
+                            <span>Image Quality</span>
+                            <span class="quality-value" id="qualityValue">High Quality (85%)</span>
+                        </label>
+                        <input type="range" id="qualitySlider" min="30" max="100" value="85" step="5">
+                        <div class="slider-labels">
+                            <span>Smaller File</span>
+                            <span>Best Quality</span>
+                        </div>
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="dpiSelect">Resolution (DPI)</label>
+                        <select id="dpiSelect">
+                            <option value="72">72 DPI - Web/Email (Smallest)</option>
+                            <option value="96">96 DPI - Screen Display</option>
+                            <option value="120">120 DPI - Good Quality</option>
+                            <option value="150" selected>150 DPI - High Quality (Recommended)</option>
+                            <option value="200">200 DPI - Professional</option>
+                            <option value="300">300 DPI - Print Quality (Largest)</option>
+                        </select>
+                    </div>
+
+                    <button class="compress-btn" id="compressBtn">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="4 14 10 14 10 20"></polyline>
+                            <polyline points="20 10 14 10 14 4"></polyline>
+                            <line x1="14" y1="10" x2="21" y2="3"></line>
+                            <line x1="3" y1="21" x2="10" y2="14"></line>
                         </svg>
-                        Compress Another
+                        Compress PDF
                     </button>
+                </div>
+
+                <!-- Progress Section -->
+                <div class="progress-section hidden" id="progressSection">
+                    <div class="progress-header">
+                        <svg class="spinner" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"
+                                stroke-dasharray="60 40"></circle>
+                        </svg>
+                        <span id="progressText">Processing page 1 of 10...</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+
+                <!-- Results Section -->
+                <div class="results-section hidden" id="resultsSection">
+                    <div class="results-header">
+                        <svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        <h3>Compression Complete!</h3>
+                    </div>
+
+                    <div class="size-comparison">
+                        <div class="size-box original">
+                            <span class="size-label">Original</span>
+                            <span class="size-value" id="originalSize">5.2 MB</span>
+                        </div>
+                        <div class="arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </div>
+                        <div class="size-box compressed">
+                            <span class="size-label">Compressed</span>
+                            <span class="size-value" id="compressedSize">1.8 MB</span>
+                        </div>
+                    </div>
+
+                    <div class="savings-badge" id="savingsBadge">
+                        <span>65% smaller</span>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="preview-btn" id="previewBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                            Preview
+                        </button>
+                        <button class="download-btn" id="downloadBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Download
+                        </button>
+                        <button class="new-file-btn" id="newFileBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            New
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== IMAGES TO PDF TAB ========== -->
+            <div class="tab-content" id="imagesTab">
+                <!-- Image Drop Zone -->
+                <div class="drop-zone" id="imageDropZone">
+                    <input type="file" id="imageInput" accept="image/*" multiple hidden>
+                    <div class="drop-zone-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                        <h2>Drop images here</h2>
+                        <p>or click to browse</p>
+                        <span class="file-types">Supports JPG, PNG, GIF, WebP</span>
+                    </div>
+                </div>
+
+                <!-- Image List -->
+                <div class="image-list hidden" id="imageList">
+                    <div class="image-list-header">
+                        <h3>Images (<span id="imageCount">0</span>)</h3>
+                        <button class="add-more-btn" id="addMoreBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Add More
+                        </button>
+                    </div>
+                    <p class="drag-hint">Drag to reorder images</p>
+                    <div class="image-grid" id="imageGrid"></div>
+
+                    <!-- Image Settings -->
+                    <div class="settings-panel" style="margin-top: 1rem;">
+                        <h3>PDF Settings</h3>
+
+                        <div class="setting-group">
+                            <label for="imgQualitySlider">
+                                <span>Image Quality</span>
+                                <span class="quality-value" id="imgQualityValue">Good Quality (75%)</span>
+                            </label>
+                            <input type="range" id="imgQualitySlider" min="30" max="100" value="75" step="5">
+                            <div class="slider-labels">
+                                <span>Smaller File</span>
+                                <span>Best Quality</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <label for="pageSizeSelect">Page Size</label>
+                            <select id="pageSizeSelect">
+                                <option value="fit">Fit to Image</option>
+                                <option value="a4" selected>A4</option>
+                                <option value="letter">Letter</option>
+                                <option value="legal">Legal</option>
+                            </select>
+                        </div>
+
+                        <div class="button-group">
+                            <button class="compress-btn" id="createPdfBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                Create PDF
+                            </button>
+                            <button class="clear-btn" id="clearImagesBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path
+                                        d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                                    </path>
+                                </svg>
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Progress -->
+                <div class="progress-section hidden" id="imageProgressSection">
+                    <div class="progress-header">
+                        <svg class="spinner" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none"
+                                stroke-dasharray="60 40"></circle>
+                        </svg>
+                        <span id="imageProgressText">Creating PDF...</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="imageProgressFill"></div>
+                    </div>
+                </div>
+
+                <!-- Image Results -->
+                <div class="results-section hidden" id="imageResultsSection">
+                    <div class="results-header">
+                        <svg class="success-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        <h3>PDF Created!</h3>
+                    </div>
+
+                    <div class="result-info">
+                        <span class="result-label">File Size:</span>
+                        <span class="result-value" id="imagePdfSize">2.5 MB</span>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="preview-btn" id="imagePreviewBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                            Preview
+                        </button>
+                        <button class="download-btn" id="imageDownloadBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Download
+                        </button>
+                        <button class="new-file-btn" id="imageNewBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            New
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -194,6 +364,38 @@
                 <span>Files are processed entirely on your device. No data is sent to any server.</span>
             </div>
         </footer>
+    </div>
+
+    <!-- PDF Preview Modal -->
+    <div class="modal hidden" id="previewModal">
+        <div class="modal-overlay" id="modalOverlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>PDF Preview</h3>
+                <div class="modal-nav">
+                    <button class="nav-btn" id="prevPageBtn" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                    <span id="pageIndicator">Page 1 of 1</span>
+                    <button class="nav-btn" id="nextPageBtn" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                <button class="modal-close" id="closeModal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <canvas id="previewCanvas"></canvas>
+            </div>
+        </div>
     </div>
 
     <!-- Hidden Canvas for PDF Rendering -->
