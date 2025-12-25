@@ -150,11 +150,10 @@ function formatFileSize(bytes) {
 }
 
 function getQualityLabel(value) {
-    if (value <= 40) return 'Maximum Compression';
-    if (value <= 60) return 'Medium Quality';
+    if (value <= 50) return 'Maximum Compression';
+    if (value <= 65) return 'Balanced';
     if (value <= 80) return 'Good Quality';
-    if (value < 90) return 'High Quality';
-    return 'Best Quality (PNG - Lossless)';
+    return 'High Quality';
 }
 
 function updateQualityLabel() {
@@ -252,8 +251,11 @@ async function compressPDF() {
     state.isProcessing = true;
     const quality = parseInt(elements.qualitySlider.value) / 100;
     const dpi = parseInt(elements.dpiSelect.value);
-
-    // Calculate render scale for better quality
+    // Calculate render scale based on DPI
+    // 72 DPI = 1x (base PDF resolution)
+    // 150 DPI = ~2x (screen quality)
+    // 300 DPI = ~4x (print quality)
+    // This ensures higher DPI = higher resolution canvas = clearer output
     const renderScale = dpi / 72;
 
     elements.settingsPanel.classList.add('hidden');
@@ -294,11 +296,9 @@ async function compressPDF() {
                 viewport: renderViewport
             }).promise;
 
-            // Use PNG for high quality to avoid JPEG artifacts
-            const useHighQuality = quality >= 0.9;
-            const imageData = useHighQuality
-                ? canvas.toDataURL('image/png')
-                : canvas.toDataURL('image/jpeg', quality);
+            // Always use JPEG for smaller file size
+            // Higher quality = less compression artifacts but larger file
+            const imageData = canvas.toDataURL('image/jpeg', quality);
 
             // Calculate page dimensions from original size
             const widthPt = originalViewport.width;
@@ -317,8 +317,7 @@ async function compressPDF() {
                 jspdfDoc.addPage([widthMM, heightMM], widthMM > heightMM ? 'landscape' : 'portrait');
             }
 
-            const imgFormat = useHighQuality ? 'PNG' : 'JPEG';
-            jspdfDoc.addImage(imageData, imgFormat, 0, 0, widthMM, heightMM, undefined, 'FAST');
+            jspdfDoc.addImage(imageData, 'JPEG', 0, 0, widthMM, heightMM, undefined, 'FAST');
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
