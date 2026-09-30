@@ -357,7 +357,8 @@ body {
 }
 
 /* Text Input */
-input[type="text"] {
+input[type="text"],
+select {
     width: 100%;
     padding: 0.625rem 0.875rem;
     background: var(--bg-tertiary);
@@ -369,7 +370,8 @@ input[type="text"] {
     transition: all 0.2s ease;
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+select:focus {
     border-color: var(--accent-primary);
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }

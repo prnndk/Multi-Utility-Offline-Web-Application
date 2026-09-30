@@ -8,7 +8,7 @@
         content="Privacy-First Image Watermark - Add watermarks to images 100% client-side, no data sent to servers.">
     <title>Image Watermark - Privacy First, Offline Ready</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;700&family=Playfair+Display:wght@400;700&family=Montserrat:wght@400;700&family=Oswald:wght@400;700&family=Pacifico&family=Lobster&family=Dancing+Script:wght@400;700&family=Bebas+Neue&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <!-- HEIC/HEIF Support -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js"></script>
 </head>
@@ -96,6 +96,37 @@
                     <div class="setting-group">
                         <label for="watermarkText">Watermark Text</label>
                         <input type="text" id="watermarkText" placeholder="© Your Name" value="© 2024">
+                    </div>
+
+                    <!-- Font Family -->
+                    <div class="setting-group">
+                        <label for="fontFamily">Font</label>
+                        <select id="fontFamily">
+                            <option value="Inter">Inter</option>
+                            <option value="Roboto">Roboto</option>
+                            <option value="Montserrat">Montserrat</option>
+                            <option value="Oswald">Oswald</option>
+                            <option value="Bebas Neue">Bebas Neue</option>
+                            <option value="Playfair Display">Playfair Display</option>
+                            <option value="Dancing Script">Dancing Script</option>
+                            <option value="Pacifico">Pacifico</option>
+                            <option value="Lobster">Lobster</option>
+                            <option value="Roboto Mono">Roboto Mono</option>
+                            <option value="Arial">Arial</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New</option>
+                            <option value="Impact">Impact</option>
+                        </select>
+                    </div>
+
+                    <!-- Bold -->
+                    <div class="setting-group checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="fontBold" checked>
+                            <span class="checkmark"></span>
+                            <span>Bold</span>
+                        </label>
                     </div>
 
                     <!-- Font Size -->
