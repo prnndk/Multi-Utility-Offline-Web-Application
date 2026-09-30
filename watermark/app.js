@@ -308,7 +308,7 @@ function renderTiledWatermark(ctx, width, height, text, fontSize, rotation) {
     // Horizontal step follows text width; vertical step follows font size only,
     // so rows stay tight even when the text is long
     const stepX = (textWidth + fontSize * 1.5) * spacingFactor;
-    const stepY = fontSize * 2 * spacingFactor;
+    const stepY = fontSize * 1.4 * spacingFactor;
     const diagonal = Math.sqrt(width * width + height * height);
 
     ctx.translate(width / 2, height / 2);
