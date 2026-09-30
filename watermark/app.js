@@ -9,6 +9,8 @@ const state = {
     fileName: '',
     settings: {
         text: '© 2024',
+        fontFamily: 'Inter',
+        bold: true,
         fontSize: 48,
         opacity: 50,
         rotation: -30,
@@ -46,6 +48,8 @@ const elements = {
     removeImage: document.getElementById('removeImage'),
     previewCanvas: document.getElementById('previewCanvas'),
     watermarkText: document.getElementById('watermarkText'),
+    fontFamily: document.getElementById('fontFamily'),
+    fontBold: document.getElementById('fontBold'),
     fontSize: document.getElementById('fontSize'),
     fontSizeValue: document.getElementById('fontSizeValue'),
     opacity: document.getElementById('opacity'),
@@ -241,6 +245,19 @@ function renderPreview() {
     applyWatermark(ctx, canvas.width, canvas.height);
 }
 
+function getFontString(fontSize) {
+    const { fontFamily, bold } = state.settings;
+    return `${bold ? 'bold ' : ''}${fontSize}px '${fontFamily}', sans-serif`;
+}
+
+// Ensure the chosen font is loaded before drawing, then re-render
+function ensureFontLoaded() {
+    if (!document.fonts || !document.fonts.load) return;
+    const font = getFontString(state.settings.fontSize);
+    if (document.fonts.check(font)) return;
+    document.fonts.load(font, state.settings.text || 'A').then(renderPreview).catch(() => {});
+}
+
 function applyWatermark(ctx, width, height) {
     const { text, fontSize, opacity, rotation, color, position, tile } = state.settings;
 
@@ -249,7 +266,7 @@ function applyWatermark(ctx, width, height) {
     ctx.save();
 
     // Set text properties
-    ctx.font = `bold ${fontSize}px 'Inter', sans-serif`;
+    ctx.font = getFontString(fontSize);
     ctx.fillStyle = color;
     ctx.globalAlpha = opacity / 100;
     ctx.textAlign = 'center';
@@ -263,7 +280,7 @@ function applyWatermark(ctx, width, height) {
         const pos = getPosition(position, width, height, fontSize);
 
         ctx.translate(pos.x, pos.y);
-        ctx.rotate((rotation * Math.PI) / 180);
+        if (rotation !== 0) ctx.rotate((rotation * Math.PI) / 180);
 
         // Draw text shadow for visibility
         ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
@@ -285,7 +302,7 @@ function renderTiledWatermark(ctx, width, height, text, fontSize, rotation) {
     const diagonal = Math.sqrt(width * width + height * height);
 
     ctx.translate(width / 2, height / 2);
-    ctx.rotate((rotation * Math.PI) / 180);
+    if (rotation !== 0) ctx.rotate((rotation * Math.PI) / 180);
 
     // Draw text shadow for visibility
     ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
@@ -343,9 +360,11 @@ function downloadImage() {
 // ========================================
 function updateSettings() {
     state.settings.text = elements.watermarkText.value;
+    state.settings.fontFamily = elements.fontFamily.value;
+    state.settings.bold = elements.fontBold.checked;
     state.settings.fontSize = parseInt(elements.fontSize.value);
     state.settings.opacity = parseInt(elements.opacity.value);
-    state.settings.rotation = parseInt(elements.rotation.value);
+    state.settings.rotation = parseInt(elements.rotation.value) || 0;
     state.settings.color = elements.textColor.value;
     state.settings.tile = elements.tileWatermark.checked;
     state.settings.tileSpacing = parseInt(elements.tileSpacing.value);
@@ -365,6 +384,7 @@ function updateSettings() {
     }
 
     renderPreview();
+    ensureFontLoaded();
 }
 
 function setPosition(position) {
@@ -609,6 +629,8 @@ function initEventListeners() {
 
     // Settings changes - live preview
     elements.watermarkText.addEventListener('input', updateSettings);
+    elements.fontFamily.addEventListener('change', updateSettings);
+    elements.fontBold.addEventListener('change', updateSettings);
     elements.fontSize.addEventListener('input', updateSettings);
     elements.opacity.addEventListener('input', updateSettings);
     elements.rotation.addEventListener('input', updateSettings);
