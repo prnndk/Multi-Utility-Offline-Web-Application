@@ -295,10 +295,18 @@ function applyWatermark(ctx, width, height) {
 }
 
 function renderTiledWatermark(ctx, width, height, text, fontSize, rotation) {
-    const textWidth = ctx.measureText(text).width;
+    // Long text: shrink so a single line fits within the image width
+    const maxTextWidth = width * 0.9;
+    let textWidth = ctx.measureText(text).width;
+    if (textWidth > maxTextWidth) {
+        fontSize = Math.max(8, Math.floor(fontSize * maxTextWidth / textWidth));
+        ctx.font = getFontString(fontSize);
+        textWidth = ctx.measureText(text).width;
+    }
+
     const spacingFactor = state.settings.tileSpacing / 100;
     // Horizontal step follows text width; vertical step follows font size only,
-    // so rows stay tight even when the text is long (e.g. at 0° rotation)
+    // so rows stay tight even when the text is long
     const stepX = (textWidth + fontSize * 1.5) * spacingFactor;
     const stepY = fontSize * 2 * spacingFactor;
     const diagonal = Math.sqrt(width * width + height * height);
@@ -312,9 +320,13 @@ function renderTiledWatermark(ctx, width, height, text, fontSize, rotation) {
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
 
-    for (let y = -diagonal; y < diagonal; y += stepY) {
-        for (let x = -diagonal; x < diagonal; x += stepX) {
-            ctx.fillText(text, x, y);
+    // Grid centered on the image; odd rows are shifted half a step (brick pattern)
+    const rows = Math.ceil(diagonal / stepY);
+    const cols = Math.ceil(diagonal / stepX);
+    for (let r = -rows; r <= rows; r++) {
+        const offset = (r % 2 !== 0) ? stepX / 2 : 0;
+        for (let c = -cols; c <= cols; c++) {
+            ctx.fillText(text, c * stepX + offset, r * stepY);
         }
     }
 }
