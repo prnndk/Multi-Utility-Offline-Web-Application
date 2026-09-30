@@ -297,8 +297,10 @@ function applyWatermark(ctx, width, height) {
 function renderTiledWatermark(ctx, width, height, text, fontSize, rotation) {
     const textWidth = ctx.measureText(text).width;
     const spacingFactor = state.settings.tileSpacing / 100;
-    const baseSpacing = Math.max(textWidth * 1.5, fontSize * 3);
-    const spacing = baseSpacing * spacingFactor;
+    // Horizontal step follows text width; vertical step follows font size only,
+    // so rows stay tight even when the text is long (e.g. at 0° rotation)
+    const stepX = (textWidth + fontSize * 1.5) * spacingFactor;
+    const stepY = fontSize * 2 * spacingFactor;
     const diagonal = Math.sqrt(width * width + height * height);
 
     ctx.translate(width / 2, height / 2);
@@ -310,8 +312,8 @@ function renderTiledWatermark(ctx, width, height, text, fontSize, rotation) {
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
 
-    for (let y = -diagonal; y < diagonal; y += spacing * 0.7) {
-        for (let x = -diagonal; x < diagonal; x += spacing) {
+    for (let y = -diagonal; y < diagonal; y += stepY) {
+        for (let x = -diagonal; x < diagonal; x += stepX) {
             ctx.fillText(text, x, y);
         }
     }
