@@ -4,7 +4,9 @@
  */
 
 // Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 // ========================================
 // Global State
@@ -103,7 +105,7 @@ const elements = {
 // Theme Management
 // ========================================
 function initTheme() {
-    const savedTheme = localStorage.getItem('theme');
+    const savedTheme = localStorage.getItem('mu-theme') || localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
     if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
@@ -114,33 +116,31 @@ function initTheme() {
 function toggleTheme() {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    localStorage.setItem('theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('mu-theme', isDark ? 'light' : 'dark');
 }
 
 // ========================================
 // Tab Navigation
 // ========================================
+function showTab(tabName) {
+    if (!['compress', 'images'].includes(tabName)) return;
+
+    elements.tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tabName));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    (tabName === 'images' ? elements.imagesTab : elements.compressTab).classList.add('active');
+}
+
 function initTabs() {
     elements.tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            const tabName = btn.dataset.tab;
-
-            // Update active tab button
-            elements.tabBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Show corresponding content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-
-            if (tabName === 'compress') {
-                elements.compressTab.classList.add('active');
-            } else if (tabName === 'images') {
-                elements.imagesTab.classList.add('active');
-            }
+            showTab(btn.dataset.tab);
+            history.replaceState(null, '', `#${btn.dataset.tab}`);
         });
     });
+
+    // Deep link from other pages, e.g. index.html#images
+    showTab(location.hash.slice(1));
+    window.addEventListener('hashchange', () => showTab(location.hash.slice(1)));
 }
 
 // ========================================

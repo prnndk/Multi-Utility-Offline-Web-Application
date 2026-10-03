@@ -81,7 +81,7 @@ const elements = {
 // Theme Management
 // ========================================
 function initTheme() {
-    const savedTheme = localStorage.getItem('watermark-theme');
+    const savedTheme = localStorage.getItem('mu-theme') || localStorage.getItem('watermark-theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
     if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
@@ -92,7 +92,7 @@ function initTheme() {
 function toggleTheme() {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     document.documentElement.setAttribute('data-theme', isDark ? 'light' : 'dark');
-    localStorage.setItem('watermark-theme', isDark ? 'light' : 'dark');
+    localStorage.setItem('mu-theme', isDark ? 'light' : 'dark');
 }
 
 // ========================================
