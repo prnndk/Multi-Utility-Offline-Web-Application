@@ -1,0 +1,181 @@
+/* ========================================
+   Shared theme: flat, modern, minimal gradient
+   Loaded after each page's own stylesheet.
+   ======================================== */
+:root {
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f1f5f9;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    --accent-primary: #4f46e5;
+    --accent-secondary: #4338ca;
+    --accent-gradient: var(--accent-primary);
+    --success-color: #16a34a;
+    --success-bg: #f0fdf4;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 2px 8px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.10);
+    --shadow-glow: 0 0 0 0 transparent;
+    --glass-bg: rgba(255, 255, 255, 0.92);
+    --nav-height: 3.5rem;
+}
+
+[data-theme="dark"] {
+    --bg-primary: #0b1020;
+    --bg-secondary: #131a2e;
+    --bg-tertiary: #1c2540;
+    --text-primary: #f1f5f9;
+    --text-secondary: #b6c2d6;
+    --text-muted: #8392ab;
+    --border-color: #263150;
+    --accent-primary: #6366f1;
+    --accent-secondary: #818cf8;
+    --success-color: #4ade80;
+    --success-bg: #0f2a1c;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --glass-bg: rgba(19, 26, 46, 0.92);
+}
+
+body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+/* ---------- Navigation bar ---------- */
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.navbar-inner {
+    max-width: 1000px;
+    margin: 0 auto;
+    height: var(--nav-height);
+    padding: 0 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-primary);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.brand-mark {
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.4rem;
+    background: var(--accent-primary);
+    color: #fff;
+    display: grid;
+    place-items: center;
+}
+
+.brand-mark svg { width: 1rem; height: 1rem; }
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.nav-links::-webkit-scrollbar { display: none; }
+
+.nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-link svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+
+.nav-link:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+.nav-link.active,
+.nav-link[aria-current="page"] {
+    background: var(--bg-tertiary);
+    color: var(--accent-primary);
+}
+
+[data-theme="dark"] .nav-link.active,
+[data-theme="dark"] .nav-link[aria-current="page"] { color: var(--accent-secondary); }
+
+.nav-link:focus-visible,
+.theme-toggle:focus-visible,
+.brand:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+.navbar .theme-toggle {
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    border-radius: 0.5rem;
+    background: transparent;
+}
+
+.navbar .theme-toggle:hover { transform: none; background: var(--bg-tertiary); }
+
+/* Tab buttons inside the navbar use nav styling, not the old pill tabs */
+.navbar .tab-btn { flex: 0 0 auto; justify-content: flex-start; padding: 0.5rem 0.75rem; font-size: 0.875rem; }
+.navbar .tab-btn svg { width: 1rem; height: 1rem; }
+.navbar .tab-btn.active { background: var(--bg-tertiary); color: var(--accent-primary); box-shadow: none; }
+[data-theme="dark"] .navbar .tab-btn.active { color: var(--accent-secondary); }
+
+/* ---------- Page intro (replaces old gradient header) ---------- */
+.page-intro { margin: 0.5rem 0 1.5rem; }
+.page-intro h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
+.page-intro p { color: var(--text-secondary); font-size: 0.9375rem; margin-top: 0.25rem; }
+
+/* ---------- Flatten leftover gradient/glow styling ---------- */
+.logo h1 { background: none; -webkit-text-fill-color: currentColor; color: var(--text-primary); }
+.app-container { padding-top: 1.5rem; }
+.drop-zone, .settings-panel, .settings-section, .preview-section, .file-card,
+.results-section, .progress-section, .image-list { box-shadow: var(--shadow-sm); }
+button:hover, .download-btn:hover, .compress-btn:hover { box-shadow: var(--shadow-md); }
+
+@media (max-width: 640px) {
+    .navbar-inner { padding: 0 1rem; gap: 0.75rem; }
+    .brand-text { display: none; }
+    .nav-link, .navbar .tab-btn { padding: 0.5rem; }
+}
+
+@media (max-width: 520px) {
+    .nav-label { display: none; }
+    .nav-link, .navbar .tab-btn { padding: 0.5rem 0.625rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation-duration: 0.01ms !important; }
+}
