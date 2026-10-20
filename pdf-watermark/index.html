@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="PDF Watermark & Trace Signature - add a visible watermark and a traceable signature to PDFs, 100% client-side.">
+    <title>PDF Watermark & Trace Signature</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../theme.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+</head>
+
+<body>
+    <nav class="navbar" aria-label="Main">
+        <div class="navbar-inner">
+            <a class="brand" href="../index.html">
+                <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.4 2.4-2.1-.6-.6-2.1z"/></svg></span>
+                <span class="brand-text">Offline Toolkit</span>
+            </a>
+            <div class="nav-links">
+                <a class="nav-link" href="../index.html#compress" aria-label="Compress PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg><span class="nav-label">Compress PDF</span></a>
+                <a class="nav-link" href="../index.html#images" aria-label="Images to PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span class="nav-label">Images to PDF</span></a>
+                <a class="nav-link" href="../watermark/index.html" aria-label="Image Watermark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7l5.7 5.7a8 8 0 1 1-11.4 0z"/></svg><span class="nav-label">Image Watermark</span></a>
+            <a class="nav-link" href="index.html" aria-current="page" aria-label="PDF Watermark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg><span class="nav-label">PDF Watermark</span></a>
+            </div>
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+                <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
+    </nav>
+    <div class="app-container">
+        <div class="page-intro">
+            <h1>PDF Watermark &amp; Trace Signature</h1>
+            <p>Stamp a visible watermark and embed a hidden signature that identifies who the PDF was issued to.</p>
+        </div>
+
+        <div class="segmented" role="tablist">
+            <button class="seg-btn active" data-pane="sign" role="tab">Watermark &amp; Sign</button>
+            <button class="seg-btn" data-pane="verify" role="tab">Verify / Trace</button>
+            <button class="seg-btn" data-pane="log" role="tab">Issue Log</button>
+        </div>
+
+        <main class="main-content">
+            <!-- ========== WATERMARK & SIGN ========== -->
+            <section class="pane active" id="pane-sign">
+                <div class="drop-zone" id="dropZone">
+                    <input type="file" id="fileInput" accept=".pdf,application/pdf" hidden>
+                    <div class="drop-zone-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <h2>Drop your PDF here</h2>
+                        <p>or click to browse</p>
+                        <span class="file-types">Processed locally, never uploaded</span>
+                    </div>
+                </div>
+
+                <div class="file-info hidden" id="fileInfo">
+                    <div class="file-card">
+                        <div class="file-details">
+                            <h3 id="fileName">document.pdf</h3>
+                            <p id="fileMeta">2.5 MB</p>
+                        </div>
+                        <button class="remove-file" id="removeFile" aria-label="Remove file">✕</button>
+                    </div>
+                </div>
+
+                <div class="settings-panel hidden" id="settingsPanel">
+                    <h3>Trace Signature</h3>
+
+                    <div class="setting-group">
+                        <label for="recipient">Issued to (recipient name / email)</label>
+                        <input type="text" id="recipient" placeholder="e.g. Budi Santoso - budi@example.com" maxlength="120">
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="purpose">Purpose / note (optional)</label>
+                        <input type="text" id="purpose" placeholder="e.g. Pengambilan toga DWP ITS" maxlength="120">
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="passphrase">Signing passphrase (optional, recommended)</label>
+                        <input type="password" id="passphrase" autocomplete="off" placeholder="Keep this secret">
+                        <p class="setting-hint">With a passphrase the signature is an HMAC: nobody can forge or edit it
+                            without the passphrase. Without one it is only a checksum.</p>
+                    </div>
+
+                    <div class="setting-group checkbox-row">
+                        <label><input type="checkbox" id="optFooter" checked> Visible footer with recipient &amp; ID on every page</label>
+                        <label><input type="checkbox" id="optHidden" checked> Hidden signature text on every page</label>
+                    </div>
+
+                    <h3 class="section-gap">Visible Watermark</h3>
+
+                    <div class="setting-group">
+                        <label for="wmText">Watermark text</label>
+                        <input type="text" id="wmText" value="CONFIDENTIAL" maxlength="120">
+                        <p class="setting-hint">Leave empty to skip the large watermark (signature only).</p>
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="wmFont">Font</label>
+                        <select id="wmFont">
+                            <option value="Helvetica">Helvetica</option>
+                            <option value="TimesRoman">Times Roman</option>
+                            <option value="Courier">Courier</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="wmSize"><span>Font size</span><span class="quality-value" id="wmSizeVal">48 pt</span></label>
+                        <input type="range" id="wmSize" min="10" max="150" value="48">
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="wmOpacity"><span>Opacity</span><span class="quality-value" id="wmOpacityVal">25%</span></label>
+                        <input type="range" id="wmOpacity" min="5" max="100" value="25">
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="wmRotation"><span>Rotation</span><span class="quality-value" id="wmRotationVal">-35°</span></label>
+                        <input type="range" id="wmRotation" min="-90" max="90" value="-35">
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="wmColor">Color</label>
+                        <input type="color" id="wmColor" value="#888888">
+                    </div>
+
+                    <div class="setting-group checkbox-row">
+                        <label><input type="checkbox" id="wmBold" checked> Bold</label>
+                        <label><input type="checkbox" id="wmTile" checked> Tile across the page</label>
+                    </div>
+
+                    <div class="setting-group" id="wmSpacingGroup">
+                        <label for="wmSpacing"><span>Tile spacing</span><span class="quality-value" id="wmSpacingVal">100%</span></label>
+                        <input type="range" id="wmSpacing" min="30" max="300" value="100">
+                    </div>
+
+                    <p class="form-error hidden" id="signError" role="alert"></p>
+
+                    <button class="compress-btn" id="signBtn">Watermark &amp; Sign PDF</button>
+                </div>
+
+                <div class="results-section hidden" id="signResult">
+                    <div class="results-header"><h3>PDF signed</h3></div>
+                    <dl class="kv" id="signSummary"></dl>
+                    <div class="action-buttons">
+                        <button class="download-btn" id="downloadBtn">Download PDF</button>
+                        <button class="new-file-btn" id="newBtn">New</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ========== VERIFY ========== -->
+            <section class="pane" id="pane-verify">
+                <div class="drop-zone" id="verifyDrop">
+                    <input type="file" id="verifyInput" accept=".pdf,application/pdf" hidden>
+                    <div class="drop-zone-content">
+                        <h2>Drop a PDF to trace it</h2>
+                        <p>Reads the hidden signature and tells you who it was issued to</p>
+                        <span class="file-types">Works on the signed file or a re-saved copy that kept page text</span>
+                    </div>
+                </div>
+
+                <div class="settings-panel">
+                    <div class="setting-group">
+                        <label for="verifyPass">Passphrase used when signing (needed to confirm authenticity)</label>
+                        <input type="password" id="verifyPass" autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="results-section hidden" id="verifyResult">
+                    <div class="results-header"><h3 id="verifyTitle">Result</h3></div>
+                    <dl class="kv" id="verifySummary"></dl>
+                </div>
+            </section>
+
+            <!-- ========== LOG ========== -->
+            <section class="pane" id="pane-log">
+                <div class="settings-panel">
+                    <h3>Issue Log</h3>
+                    <p class="setting-hint">Each PDF you sign is recorded here, in this browser only. Export it to keep a
+                        permanent record you can match against a leaked file.</p>
+                    <div class="log-wrap"><table class="log-table" id="logTable"></table></div>
+                    <p class="setting-hint hidden" id="logEmpty">Nothing signed yet.</p>
+                    <div class="action-buttons">
+                        <button class="preview-btn" id="exportLog">Export CSV</button>
+                        <button class="clear-btn" id="clearLog">Clear log</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="privacy-notice">
+                <span>Files are processed entirely on your device. No data is sent to any server.</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
