@@ -41,6 +41,7 @@ function showPane(name) {
 document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => showPane(b.dataset.pane)));
 
 // ---------- Helpers ----------
+class UserError extends Error { }
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
@@ -539,6 +540,26 @@ $('signBtn').addEventListener('click', async () => {
     btn.disabled = true; btn.textContent = 'Working...';
     try {
         const { PDFDocument, StandardFonts, PDFName, PDFString, degrees, rgb } = PDFLib;
+
+        // Digital signature: unlock (or first create) the signer identity before doing any heavy work
+        let digital = null;
+        if ($('optDigital').checked) {
+            const pass = $('passphrase').value;
+            if (!pass) throw new UserError('Enter your passphrase: it unlocks your digital-signature key.');
+            let id = DigiSign.readIdentity();
+            let privateKey;
+            try {
+                if (!id) {
+                    btn.textContent = 'Creating identity...';
+                    id = await DigiSign.createIdentity({ name: $('signerName').value.trim(), email: $('signerEmail').value.trim(), passphrase: pass });
+                }
+                btn.textContent = 'Working...';
+                privateKey = await DigiSign.unlockPrivateKey(id, pass);
+            } catch (e) { throw new UserError(e.message || String(e)); }
+            const info = DigiSign.describe(id);
+            digital = { cert: DigiSign.certFromPem(id.certPem), privateKey, info };
+            updateIdentityUI();
+        }
         const out = await PDFDocument.create();
 
         for (const s of state.sources) {
@@ -552,6 +573,7 @@ $('signBtn').addEventListener('click', async () => {
             doc: state.sources.map(s => s.name).join(' + '), ts: new Date().toISOString(),
             src: (await sha256OfSources()).slice(0, 16), n: state.pages.length, k: passphrase ? 1 : 0
         };
+        if (digital) payload.sf = digital.info.fingerprint.slice(0, 16);
         const payloadB64 = b64url(enc.encode(JSON.stringify(payload)));
         const token = `MUT1.${payloadB64}.${await signPayload(payloadB64, passphrase)}`;
 
@@ -603,11 +625,17 @@ $('signBtn').addEventListener('click', async () => {
         out.setProducer('Offline Toolkit');
         out.setModificationDate(new Date());
 
-        state.outBytes = await out.save();
+        if (digital) {
+            DigiSign.addPlaceholder(out, { name: digital.info.name, reason: $('signReason').value.trim(), contact: digital.info.email });
+            const saved = await out.save({ useObjectStreams: false });
+            state.outBytes = DigiSign.sign(saved, digital.cert, digital.privateKey);
+        } else {
+            state.outBytes = await out.save();
+        }
         const base = state.sources[0].name.replace(/\.pdf$/i, '');
         state.outName = `${base}_${id}.pdf`;
 
-        addLog({ id, to: recipient, note: payload.note, doc: payload.doc, ts: payload.ts, src: payload.src, signed: passphrase ? 'HMAC' : 'checksum' });
+        addLog({ id, to: recipient, note: payload.note, doc: payload.doc, ts: payload.ts, src: payload.src, signed: (passphrase ? 'HMAC' : 'checksum') + (digital ? ' + certificate' : '') });
 
         const custom = state.pages.filter(p => p.wm.mode !== 'global').length;
         renderKv($('signSummary'), [
@@ -615,6 +643,7 @@ $('signBtn').addEventListener('click', async () => {
             ['Trace ID', `<code>${esc(id)}</code>`],
             ['Pages', `${total}${custom ? ` (${custom} with page-specific watermark)` : ''}`],
             ['Signature', passphrase ? 'HMAC (passphrase protected)' : '<span class="status-warn">Checksum only (no passphrase)</span>'],
+            ['Digital signature', digital ? `Signed by ${esc(digital.info.name)}<br><code>SHA-256 ${esc(digital.info.fingerprint.slice(0, 32))}…</code>` : 'Not applied'],
             ['Stored in', ['PDF metadata', $('optHidden').checked ? 'hidden text on every page' : null, $('optFooter').checked ? 'visible footer' : null].filter(Boolean).join(', ')],
             ['Output', `${esc(state.outName)} (${fmtSize(state.outBytes.length)})`]
         ]);
@@ -627,9 +656,59 @@ $('signBtn').addEventListener('click', async () => {
         state.lastId = id;
     } catch (err) {
         console.error(err);
-        showSignError(`Could not process this PDF: ${err.message || err}. If the text contains non-Latin characters, the built-in PDF fonts cannot draw them.`);
+        showSignError(err instanceof UserError ? err.message
+            : `Could not process this PDF: ${err.message || err}. If the text contains non-Latin characters, the built-in PDF fonts cannot draw them.`);
     } finally {
         btn.disabled = false; btn.textContent = 'Assemble, Watermark & Sign';
+    }
+});
+
+// ---------- Digital signature identity UI ----------
+function updateIdentityUI() {
+    const on = $('optDigital').checked;
+    show('digiBox', on);
+    if (!on) return;
+    let info = null;
+    try { info = DigiSign.describe(DigiSign.readIdentity()); } catch (e) { /* forge missing or corrupt */ }
+    show('idCreate', !info);
+    $('idExport').disabled = $('idCert').disabled = $('idDelete').disabled = !info;
+    $('idStatus').innerHTML = info
+        ? `Signing as <strong>${esc(info.name)}</strong>${info.email ? ` &lt;${esc(info.email)}&gt;` : ''}. Certificate SHA-256: <code>${esc(info.fingerprint.slice(0, 32))}…</code>, valid until ${esc(info.notAfter.toISOString().slice(0, 10))}. Your private key is stored encrypted in this browser and unlocked by your passphrase.`
+        : 'No signing identity yet. Enter your name; a key pair and self-signed certificate will be created on first signing and protected by your passphrase. If you forget the passphrase it cannot be recovered, so export the identity as a backup.';
+}
+
+function saveText(text, name, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+$('optDigital').addEventListener('change', updateIdentityUI);
+$('idExport').addEventListener('click', () => {
+    const id = DigiSign.readIdentity();
+    if (id) saveText(DigiSign.exportIdentityFile(id), 'signing-identity.json', 'application/json');
+});
+$('idCert').addEventListener('click', () => {
+    const pem = DigiSign.certificatePem(DigiSign.readIdentity());
+    if (pem) saveText(pem, 'signer-certificate.crt', 'application/x-x509-ca-cert');
+});
+$('idImport').addEventListener('click', () => $('idImportInput').click());
+$('idImportInput').addEventListener('change', async () => {
+    const f = $('idImportInput').files[0];
+    $('idImportInput').value = '';
+    if (!f) return;
+    try {
+        if (DigiSign.readIdentity() && !confirm('Replace the signing identity stored in this browser?')) return;
+        DigiSign.importIdentityFile(await f.text());
+        showSignError('');
+        updateIdentityUI();
+    } catch (err) { showSignError(`Could not import identity: ${err.message || err}`); }
+});
+$('idDelete').addEventListener('click', () => {
+    if (confirm('Delete your signing identity from this browser? Without an exported backup you will not be able to sign as this identity again.')) {
+        DigiSign.deleteIdentity(); updateIdentityUI();
     }
 });
 
@@ -670,43 +749,76 @@ async function verifyToken(token, passphrase) {
 
 let lastVerifyBytes = null;
 
+function digitalRows(d) {
+    const label = {
+        valid: '<span class="status-ok">Valid: signature is genuine and the PDF is unchanged since signing</span>',
+        modified: '<span class="status-bad">The signature is genuine, but the PDF was MODIFIED after it was signed</span>',
+        invalid: `<span class="status-bad">Invalid signature${d.reason ? ': ' + esc(d.reason) : ''}</span>`
+    }[d.status];
+    const rows = [['Digital signature', label]];
+    if (d.signer) {
+        rows.push(['Signed by', esc(d.signer) + (d.email ? ` &lt;${esc(d.email)}&gt;` : '')]);
+        if (d.signedAt) rows.push(['Signed at', esc(d.signedAt.toISOString())]);
+        rows.push(['Certificate SHA-256', `<code>${esc(d.fingerprint.slice(0, 32))}…</code>`]);
+        let mine = null;
+        try { mine = DigiSign.describe(DigiSign.readIdentity()); } catch (e) { /* ignore */ }
+        rows.push(['Trust', mine && mine.fingerprint === d.fingerprint
+            ? '<span class="status-ok">Matches the signing identity stored in this browser</span>'
+            : '<span class="status-warn">Self-signed certificate. Confirm the fingerprint with the signer before trusting it.</span>']);
+    }
+    return rows;
+}
+
 async function runVerify(bytes) {
     $('verifyResult').classList.remove('hidden');
     $('verifyTitle').textContent = 'Reading...';
     $('verifySummary').innerHTML = '';
     try {
         const found = await extractToken(bytes);
-        if (!found) {
+        let digital = null;
+        try { digital = DigiSign.verify(bytes); } catch (e) { console.error(e); }
+
+        if (!found && !digital) {
             $('verifyTitle').textContent = 'No signature found';
-            renderKv($('verifySummary'), [['Status', '<span class="status-bad">No trace signature in this file</span>'],
+            renderKv($('verifySummary'), [['Status', '<span class="status-bad">No signature in this file</span>'],
                 ['Note', 'It may never have been signed, or it was re-created (print-to-PDF, screenshot, OCR) which removes hidden data.']]);
             return;
         }
-        const res = await verifyToken(found.token, $('verifyPass').value);
-        const p = res.payload;
-        if (!p) {
-            $('verifyTitle').textContent = 'Signature unreadable';
-            renderKv($('verifySummary'), [['Status', '<span class="status-bad">Signature is corrupted</span>']]);
-            return;
+
+        let rows = digital ? digitalRows(digital) : [['Digital signature', 'None']];
+        let title = digital ? (digital.status === 'valid' ? 'Signature found' : 'Verification failed') : 'Signature found';
+
+        if (found) {
+            const res = await verifyToken(found.token, $('verifyPass').value);
+            const p = res.payload;
+            if (!p) {
+                rows = rows.concat([['Trace signature', '<span class="status-bad">Corrupted</span>']]);
+            } else {
+                const statusHtml = {
+                    valid: '<span class="status-ok">Authentic: signature matches your passphrase</span>',
+                    checksum: '<span class="status-warn">Intact, but unprotected (signed without a passphrase, so it could have been forged)</span>',
+                    'needs-pass': '<span class="status-warn">Enter the signing passphrase above, then drop the file again, to confirm authenticity</span>',
+                    bad: '<span class="status-bad">Signature does NOT match: wrong passphrase or the signature was edited</span>'
+                }[res.status];
+                const logged = readLog().find(e => e.id === p.id);
+                if (res.status === 'bad') title = 'Verification failed';
+                rows = rows.concat([
+                    ['Trace signature', statusHtml],
+                    ['Issued to', esc(p.to || '-')],
+                    ['Trace ID', `<code>${esc(p.id)}</code>`],
+                    ['Issued at', esc(p.ts || '-')],
+                    ['Original file', esc(p.doc || '-')],
+                    ['Note', esc(p.note || '-')],
+                    ['Found in', esc(found.where)],
+                    ['In this browser\'s log', logged ? '<span class="status-ok">Yes</span>' : 'No (may have been issued from another device)']
+                ]);
+                if (p.sf && digital && digital.fingerprint && !digital.fingerprint.startsWith(p.sf)) {
+                    rows.push(['Warning', '<span class="status-bad">The digital signature was made by a different certificate than the one recorded in the trace signature</span>']);
+                }
+            }
         }
-        const statusHtml = {
-            valid: '<span class="status-ok">Authentic: signature matches your passphrase</span>',
-            checksum: '<span class="status-warn">Intact, but unprotected (signed without a passphrase, so it could have been forged)</span>',
-            'needs-pass': '<span class="status-warn">Enter the signing passphrase above, then drop the file again, to confirm authenticity</span>',
-            bad: '<span class="status-bad">Signature does NOT match: wrong passphrase or the signature was edited</span>'
-        }[res.status];
-        const logged = readLog().find(e => e.id === p.id);
-        $('verifyTitle').textContent = res.status === 'bad' ? 'Verification failed' : 'Signature found';
-        renderKv($('verifySummary'), [
-            ['Status', statusHtml],
-            ['Issued to', esc(p.to || '-')],
-            ['Trace ID', `<code>${esc(p.id)}</code>`],
-            ['Issued at', esc(p.ts || '-')],
-            ['Original file', esc(p.doc || '-')],
-            ['Note', esc(p.note || '-')],
-            ['Found in', esc(found.where)],
-            ['In this browser\'s log', logged ? '<span class="status-ok">Yes</span>' : 'No (may have been issued from another device)']
-        ]);
+        $('verifyTitle').textContent = title;
+        renderKv($('verifySummary'), rows);
     } catch (err) {
         console.error(err);
         $('verifyTitle').textContent = 'Could not read PDF';
