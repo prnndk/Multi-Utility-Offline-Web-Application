@@ -36,7 +36,7 @@
     <div class="app-container">
         <div class="page-intro">
             <h1>PDF Watermark &amp; Trace Signature</h1>
-            <p>Stamp a visible watermark and embed a hidden signature that identifies who the PDF was issued to.</p>
+            <p>Reassemble pages, watermark each page with a live preview, and embed a hidden signature that identifies who the PDF was issued to.</p>
         </div>
 
         <div class="segmented" role="tablist">
@@ -62,100 +62,138 @@
                     </div>
                 </div>
 
-                <div class="file-info hidden" id="fileInfo">
-                    <div class="file-card">
-                        <div class="file-details">
-                            <h3 id="fileName">document.pdf</h3>
-                            <p id="fileMeta">2.5 MB</p>
+                <input type="file" id="addPdfInput" accept=".pdf,application/pdf" multiple hidden>
+
+                <div class="editor hidden" id="editor">
+                    <!-- Left: live preview + page assembly -->
+                    <div class="editor-main">
+                        <div class="card">
+                            <div class="toolbar">
+                                <div class="toolbar-group">
+                                    <button class="tool-btn" id="prevPage" aria-label="Previous page">‹</button>
+                                    <span class="page-label" id="pageLabel">Page 1 / 1</span>
+                                    <button class="tool-btn" id="nextPage" aria-label="Next page">›</button>
+                                </div>
+                                <div class="toolbar-group">
+                                    <button class="tool-btn" id="moveLeft" title="Move page earlier">◀ Move</button>
+                                    <button class="tool-btn" id="moveRight" title="Move page later">Move ▶</button>
+                                    <button class="tool-btn" id="rotatePage" title="Rotate 90°">↻ Rotate</button>
+                                    <button class="tool-btn" id="dupPage" title="Duplicate page">⧉ Duplicate</button>
+                                    <button class="tool-btn danger" id="delPage" title="Delete page">✕ Delete</button>
+                                </div>
+                            </div>
+                            <div class="preview-stage" id="previewStage">
+                                <div class="preview-inner" id="previewInner">
+                                    <canvas id="baseCanvas"></canvas>
+                                    <canvas id="overlayCanvas"></canvas>
+                                </div>
+                            </div>
+                            <p class="setting-hint">Live preview. The export uses the same layout.</p>
                         </div>
-                        <button class="remove-file" id="removeFile" aria-label="Remove file">✕</button>
-                    </div>
-                </div>
 
-                <div class="settings-panel hidden" id="settingsPanel">
-                    <h3>Trace Signature</h3>
-
-                    <div class="setting-group">
-                        <label for="recipient">Issued to (recipient name / email)</label>
-                        <input type="text" id="recipient" placeholder="e.g. Budi Santoso - budi@example.com" maxlength="120">
-                    </div>
-
-                    <div class="setting-group">
-                        <label for="purpose">Purpose / note (optional)</label>
-                        <input type="text" id="purpose" placeholder="e.g. Pengambilan toga DWP ITS" maxlength="120">
-                    </div>
-
-                    <div class="setting-group">
-                        <label for="passphrase">Signing passphrase (optional, recommended)</label>
-                        <input type="password" id="passphrase" autocomplete="off" placeholder="Keep this secret">
-                        <p class="setting-hint">With a passphrase the signature is an HMAC: nobody can forge or edit it
-                            without the passphrase. Without one it is only a checksum.</p>
+                        <div class="card">
+                            <div class="toolbar">
+                                <h3 id="pagesTitle">Pages</h3>
+                                <div class="toolbar-group">
+                                    <button class="tool-btn" id="addPdf">+ Add PDF</button>
+                                    <button class="tool-btn" id="addBlank">+ Blank page</button>
+                                    <button class="tool-btn" id="reversePages">⇅ Reverse</button>
+                                    <button class="tool-btn" id="resetPages">Reset</button>
+                                    <button class="tool-btn danger" id="removeFile">Close PDF</button>
+                                </div>
+                            </div>
+                            <p class="setting-hint">Drag thumbnails to reorder. The selected page is edited with the buttons above.</p>
+                            <div class="page-strip" id="pageStrip"></div>
+                        </div>
                     </div>
 
-                    <div class="setting-group checkbox-row">
-                        <label><input type="checkbox" id="optFooter" checked> Visible footer with recipient &amp; ID on every page</label>
-                        <label><input type="checkbox" id="optHidden" checked> Hidden signature text on every page</label>
-                    </div>
+                    <!-- Right: settings -->
+                    <aside class="settings-panel editor-side" id="settingsPanel">
+                        <h3>This page</h3>
+                        <div class="setting-group">
+                            <label for="pageWmMode">Watermark on this page</label>
+                            <select id="pageWmMode">
+                                <option value="global">Same as all pages</option>
+                                <option value="custom">Custom text for this page</option>
+                                <option value="none">No watermark</option>
+                            </select>
+                        </div>
+                        <div class="setting-group hidden" id="pageWmTextGroup">
+                            <label for="pageWmText">Text for this page</label>
+                            <input type="text" id="pageWmText" maxlength="120">
+                        </div>
 
-                    <h3 class="section-gap">Visible Watermark</h3>
+                        <h3 class="section-gap">Visible Watermark</h3>
+                        <div class="setting-group">
+                            <label for="wmText">Text for all pages</label>
+                            <input type="text" id="wmText" value="CONFIDENTIAL" maxlength="120">
+                            <p class="setting-hint">Variables: <code>{page}</code> <code>{total}</code> <code>{to}</code>
+                                <code>{id}</code> <code>{date}</code>. Empty = signature only.</p>
+                        </div>
+                        <div class="setting-group">
+                            <label for="wmFont">Font</label>
+                            <select id="wmFont">
+                                <option value="Helvetica">Helvetica</option>
+                                <option value="TimesRoman">Times Roman</option>
+                                <option value="Courier">Courier</option>
+                            </select>
+                        </div>
+                        <div class="setting-group">
+                            <label for="wmSize"><span>Font size</span><span class="quality-value" id="wmSizeVal">48 pt</span></label>
+                            <input type="range" id="wmSize" min="10" max="150" value="48">
+                        </div>
+                        <div class="setting-group">
+                            <label for="wmOpacity"><span>Opacity</span><span class="quality-value" id="wmOpacityVal">25%</span></label>
+                            <input type="range" id="wmOpacity" min="5" max="100" value="25">
+                        </div>
+                        <div class="setting-group">
+                            <label for="wmRotation"><span>Rotation</span><span class="quality-value" id="wmRotationVal">-35°</span></label>
+                            <input type="range" id="wmRotation" min="-90" max="90" value="-35">
+                        </div>
+                        <div class="setting-group">
+                            <label for="wmColor">Color</label>
+                            <input type="color" id="wmColor" value="#888888">
+                        </div>
+                        <div class="setting-group checkbox-row">
+                            <label><input type="checkbox" id="wmBold" checked> Bold</label>
+                            <label><input type="checkbox" id="wmTile" checked> Tile across the page</label>
+                        </div>
+                        <div class="setting-group" id="wmSpacingGroup">
+                            <label for="wmSpacing"><span>Tile spacing</span><span class="quality-value" id="wmSpacingVal">100%</span></label>
+                            <input type="range" id="wmSpacing" min="30" max="300" value="100">
+                        </div>
 
-                    <div class="setting-group">
-                        <label for="wmText">Watermark text</label>
-                        <input type="text" id="wmText" value="CONFIDENTIAL" maxlength="120">
-                        <p class="setting-hint">Leave empty to skip the large watermark (signature only).</p>
-                    </div>
+                        <h3 class="section-gap">Trace Signature</h3>
+                        <div class="setting-group">
+                            <label for="recipient">Issued to (recipient name / email)</label>
+                            <input type="text" id="recipient" placeholder="e.g. Budi Santoso - budi@example.com" maxlength="120">
+                        </div>
+                        <div class="setting-group">
+                            <label for="purpose">Purpose / note (optional)</label>
+                            <input type="text" id="purpose" placeholder="e.g. Pengambilan toga DWP ITS" maxlength="120">
+                        </div>
+                        <div class="setting-group">
+                            <label for="passphrase">Signing passphrase (optional, recommended)</label>
+                            <input type="password" id="passphrase" autocomplete="off" placeholder="Keep this secret">
+                            <p class="setting-hint">With a passphrase the signature is an HMAC: nobody can forge or edit it
+                                without the passphrase. Without one it is only a checksum.</p>
+                        </div>
+                        <div class="setting-group checkbox-row">
+                            <label><input type="checkbox" id="optFooter" checked> Visible footer with recipient &amp; ID on every page</label>
+                            <label><input type="checkbox" id="optHidden" checked> Hidden signature text on every page</label>
+                        </div>
 
-                    <div class="setting-group">
-                        <label for="wmFont">Font</label>
-                        <select id="wmFont">
-                            <option value="Helvetica">Helvetica</option>
-                            <option value="TimesRoman">Times Roman</option>
-                            <option value="Courier">Courier</option>
-                        </select>
-                    </div>
+                        <p class="form-error hidden" id="signError" role="alert"></p>
+                        <button class="compress-btn" id="signBtn">Assemble, Watermark &amp; Sign</button>
 
-                    <div class="setting-group">
-                        <label for="wmSize"><span>Font size</span><span class="quality-value" id="wmSizeVal">48 pt</span></label>
-                        <input type="range" id="wmSize" min="10" max="150" value="48">
-                    </div>
-
-                    <div class="setting-group">
-                        <label for="wmOpacity"><span>Opacity</span><span class="quality-value" id="wmOpacityVal">25%</span></label>
-                        <input type="range" id="wmOpacity" min="5" max="100" value="25">
-                    </div>
-
-                    <div class="setting-group">
-                        <label for="wmRotation"><span>Rotation</span><span class="quality-value" id="wmRotationVal">-35°</span></label>
-                        <input type="range" id="wmRotation" min="-90" max="90" value="-35">
-                    </div>
-
-                    <div class="setting-group">
-                        <label for="wmColor">Color</label>
-                        <input type="color" id="wmColor" value="#888888">
-                    </div>
-
-                    <div class="setting-group checkbox-row">
-                        <label><input type="checkbox" id="wmBold" checked> Bold</label>
-                        <label><input type="checkbox" id="wmTile" checked> Tile across the page</label>
-                    </div>
-
-                    <div class="setting-group" id="wmSpacingGroup">
-                        <label for="wmSpacing"><span>Tile spacing</span><span class="quality-value" id="wmSpacingVal">100%</span></label>
-                        <input type="range" id="wmSpacing" min="30" max="300" value="100">
-                    </div>
-
-                    <p class="form-error hidden" id="signError" role="alert"></p>
-
-                    <button class="compress-btn" id="signBtn">Watermark &amp; Sign PDF</button>
-                </div>
-
-                <div class="results-section hidden" id="signResult">
-                    <div class="results-header"><h3>PDF signed</h3></div>
-                    <dl class="kv" id="signSummary"></dl>
-                    <div class="action-buttons">
-                        <button class="download-btn" id="downloadBtn">Download PDF</button>
-                        <button class="new-file-btn" id="newBtn">New</button>
-                    </div>
+                        <div class="results-section hidden" id="signResult">
+                            <div class="results-header"><h3>PDF signed</h3></div>
+                            <dl class="kv" id="signSummary"></dl>
+                            <div class="action-buttons">
+                                <button class="download-btn" id="downloadBtn">Download PDF</button>
+                            </div>
+                        </div>
+                    </aside>
                 </div>
             </section>
 

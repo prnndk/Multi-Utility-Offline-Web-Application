@@ -18,7 +18,6 @@ if (typeof pdfjsLib !== 'undefined') {
 }
 
 const $ = (id) => document.getElementById(id);
-const state = { bytes: null, name: '', outBytes: null, outName: '' };
 
 // ---------- Theme ----------
 (function initTheme() {
@@ -113,151 +112,524 @@ function isPdf(file) {
     return file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
 }
 
-// ---------- Sign tab ----------
-wireDrop($('dropZone'), $('fileInput'), async (file) => {
-    if (!isPdf(file)) { alert('Please choose a PDF file.'); return; }
-    state.bytes = new Uint8Array(await file.arrayBuffer());
-    state.name = file.name;
-    $('fileName').textContent = file.name;
-    $('fileMeta').textContent = fmtSize(file.size);
-    $('dropZone').classList.add('hidden');
-    $('fileInfo').classList.remove('hidden');
-    $('settingsPanel').classList.remove('hidden');
-    $('signResult').classList.add('hidden');
-});
+// ---------- Sign tab: page model ----------
+// sources: [{ name, bytes, pdf (pdf.js doc), lib (pdf-lib doc, lazy) }]
+// pages:   [{ src, idx, rot, wm: {mode:'global'|'custom'|'none', text} }]  or blank: { blank:true, w, h, rot, wm }
+const state = {
+    sources: [], pages: [], initialPages: [], sel: 0,
+    traceId: '', outBytes: null, outName: '', view: null
+};
+let renderSeq = 0;
+let rafId = 0;
+const thumbCache = new Map();
 
-function resetSign() {
-    state.bytes = null; state.outBytes = null;
-    $('dropZone').classList.remove('hidden');
-    ['fileInfo', 'settingsPanel', 'signResult'].forEach(id => $(id).classList.add('hidden'));
-}
-$('removeFile').addEventListener('click', resetSign);
-$('newBtn').addEventListener('click', resetSign);
+const wmFields = ['wmText', 'wmFont', 'wmSize', 'wmOpacity', 'wmRotation', 'wmColor', 'wmBold', 'wmTile', 'wmSpacing', 'recipient', 'optFooter'];
 
-[['wmSize', 'wmSizeVal', v => `${v} pt`], ['wmOpacity', 'wmOpacityVal', v => `${v}%`],
- ['wmRotation', 'wmRotationVal', v => `${v}°`], ['wmSpacing', 'wmSpacingVal', v => `${v}%`]]
-    .forEach(([inp, out, f]) => $(inp).addEventListener('input', () => { $(out).textContent = f($(inp).value); }));
-$('wmTile').addEventListener('change', () => $('wmSpacingGroup').classList.toggle('hidden', !$('wmTile').checked));
+function newEntry(src, idx) { return { src, idx, rot: 0, wm: { mode: 'global', text: '' } }; }
+const cur = () => state.pages[state.sel];
 
-// Draw text centred on (cx, cy), rotated by angleDeg around its own centre
-function drawCentered(page, text, cx, cy, angleDeg, opts) {
-    const { font, size } = opts;
-    const w = font.widthOfTextAtSize(text, size);
-    const h = font.heightAtSize(size) * 0.7;
-    const a = angleDeg * Math.PI / 180;
-    const x = cx - (w / 2) * Math.cos(a) + (h / 2) * Math.sin(a);
-    const y = cy - (w / 2) * Math.sin(a) - (h / 2) * Math.cos(a);
-    page.drawText(text, { x, y, size, font, color: opts.color, opacity: opts.opacity, rotate: PDFLib.degrees(angleDeg) });
+function show(el, on) { $(el).classList.toggle('hidden', !on); }
+
+async function loadSource(file) {
+    if (!isPdf(file)) throw new Error('Please choose a PDF file.');
+    if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js failed to load; check your connection once, then reload.');
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+    return { name: file.name, bytes, pdf, lib: null };
 }
 
-function applyWatermark(page, text, o) {
-    const { width, height } = page.getSize();
-    const textW = o.font.widthOfTextAtSize(text, o.size);
-    if (!o.tile) {
-        drawCentered(page, text, width / 2, height / 2, o.angle, o);
-        return;
+async function openFirst(file) {
+    try {
+        const src = await loadSource(file);
+        state.sources = [src];
+        state.pages = Array.from({ length: src.pdf.numPages }, (_, i) => newEntry(0, i));
+        state.initialPages = JSON.parse(JSON.stringify(state.pages));
+        state.sel = 0;
+        state.traceId = newTraceId();
+        state.outBytes = null;
+        show('dropZone', false); show('editor', true); show('signResult', false);
+        showSignError('');
+        refreshAll();
+    } catch (err) {
+        alert(`Could not open this PDF: ${err.message || err}`);
     }
+}
+
+wireDrop($('dropZone'), $('fileInput'), openFirst);
+
+function closePdf() {
+    state.sources.forEach(s => s.pdf.destroy && s.pdf.destroy());
+    state.sources = []; state.pages = []; state.outBytes = null;
+    thumbCache.clear();
+    show('editor', false); show('dropZone', true);
+}
+$('removeFile').addEventListener('click', closePdf);
+
+// ---------- Page geometry ----------
+async function pageInfo(entry) {
+    if (entry.blank) {
+        const R = ((entry.rot % 360) + 360) % 360;
+        return { VW: R % 180 ? entry.h : entry.w, VH: R % 180 ? entry.w : entry.h, R };
+    }
+    const page = await state.sources[entry.src].pdf.getPage(entry.idx + 1);
+    const R = (((page.rotate + entry.rot) % 360) + 360) % 360;
+    const vp = page.getViewport({ scale: 1, rotation: R });
+    return { VW: vp.width, VH: vp.height, R, page };
+}
+
+async function renderEntry(entry, canvas, cssWidth, dpr) {
+    const info = await pageInfo(entry);
+    const k = cssWidth / info.VW;
+    canvas.width = Math.round(info.VW * k * dpr);
+    canvas.height = Math.round(info.VH * k * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (!entry.blank) {
+        const vp = info.page.getViewport({ scale: k * dpr, rotation: info.R });
+        await info.page.render({ canvasContext: ctx, viewport: vp }).promise;
+    }
+    return { ...info, k };
+}
+
+// ---------- Watermark layout (shared by preview and export) ----------
+function readWm() {
+    const bold = $('wmBold').checked;
+    const f = $('wmFont').value;
+    return {
+        fontKey: f === 'TimesRoman' ? (bold ? 'TimesRomanBold' : 'TimesRoman')
+            : f === 'Courier' ? (bold ? 'CourierBold' : 'Courier') : (bold ? 'HelveticaBold' : 'Helvetica'),
+        size: +$('wmSize').value, opacity: +$('wmOpacity').value / 100, angle: +$('wmRotation').value,
+        color: $('wmColor').value, tile: $('wmTile').checked, spacing: +$('wmSpacing').value
+    };
+}
+
+function expandTokens(text, pageNo, total) {
+    return text
+        .replace(/\{page\}/gi, pageNo).replace(/\{total\}/gi, total)
+        .replace(/\{to\}/gi, $('recipient').value.trim()).replace(/\{id\}/gi, state.traceId)
+        .replace(/\{date\}/gi, new Date().toISOString().slice(0, 10));
+}
+
+function pageText(entry, pageNo, total) {
+    const w = entry.wm;
+    const raw = w.mode === 'none' ? '' : w.mode === 'custom' ? w.text : $('wmText').value;
+    return expandTokens(raw.trim(), pageNo, total);
+}
+
+// Returns centre points + angle (visual frame, origin bottom-left, y up)
+function layout(text, o, VW, VH, textW) {
+    if (!text) return [];
+    if (!o.tile) return [{ cx: VW / 2, cy: VH / 2, a: o.angle }];
     const f = o.spacing / 100;
     const stepX = (textW + o.size * 1.5) * f;
     const stepY = o.size * 2.2 * f;
-    const diag = Math.hypot(width, height);
+    const diag = Math.hypot(VW, VH);
     const a = o.angle * Math.PI / 180;
-    const rows = Math.ceil(diag / stepY);
-    const cols = Math.ceil(diag / stepX);
+    const rows = Math.ceil(diag / stepY), cols = Math.ceil(diag / stepX);
+    const out = [];
     for (let r = -rows; r <= rows; r++) {
         const shift = r % 2 ? stepX / 2 : 0;
         for (let c = -cols; c <= cols; c++) {
-            const gx = c * stepX + shift;
-            const gy = r * stepY;
-            const cx = width / 2 + gx * Math.cos(a) - gy * Math.sin(a);
-            const cy = height / 2 + gx * Math.sin(a) + gy * Math.cos(a);
-            // skip tiles whose centre is well outside the page
-            if (cx < -textW || cx > width + textW || cy < -textW || cy > height + textW) continue;
-            drawCentered(page, text, cx, cy, o.angle, o);
+            const gx = c * stepX + shift, gy = r * stepY;
+            const cx = VW / 2 + gx * Math.cos(a) - gy * Math.sin(a);
+            const cy = VH / 2 + gx * Math.sin(a) + gy * Math.cos(a);
+            if (cx < -textW || cx > VW + textW || cy < -textW || cy > VH + textW) continue;
+            out.push({ cx, cy, a: o.angle });
         }
+    }
+    return out;
+}
+
+// Fonts used for measuring (same metrics as the embedded fonts at export time)
+let measureDoc = null;
+const measureFonts = new Map();
+async function ensureMeasureFont(key) {
+    if (measureFonts.has(key)) return measureFonts.get(key);
+    measureDoc = measureDoc || await PDFLib.PDFDocument.create();
+    const font = await measureDoc.embedFont(PDFLib.StandardFonts[key]);
+    measureFonts.set(key, font);
+    return font;
+}
+
+const CSS_FONTS = {
+    Helvetica: 'Helvetica, Arial, sans-serif', TimesRoman: '"Times New Roman", Times, serif', Courier: '"Courier New", Courier, monospace'
+};
+function cssFont(key, px) {
+    const bold = /Bold$/.test(key) ? 'bold ' : '';
+    const fam = key.startsWith('Times') ? 'TimesRoman' : key.startsWith('Courier') ? 'Courier' : 'Helvetica';
+    return `${bold}${px}px ${CSS_FONTS[fam]}`;
+}
+
+// ---------- Live preview ----------
+function footerText() {
+    return `Issued to: ${$('recipient').value.trim() || '(recipient)'}  |  ID: ${state.traceId}  |  ${new Date().toISOString().slice(0, 10)}`;
+}
+
+function drawOverlay() {
+    const v = state.view;
+    if (!v || !cur()) return;
+    const canvas = $('overlayCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const o = readWm();
+    const font = measureFonts.get(o.fontKey);
+    if (!font) { ensureMeasureFont(o.fontKey).then(scheduleOverlay); return; }
+
+    const sc = v.k * v.dpr; // canvas px per pt
+    const text = pageText(cur(), state.sel + 1, state.pages.length);
+    if (text) {
+        const w = font.widthOfTextAtSize(text, o.size);
+        const h = font.heightAtSize(o.size) * 0.7;
+        ctx.save();
+        ctx.font = cssFont(o.fontKey, o.size * sc);
+        ctx.fillStyle = o.color;
+        ctx.globalAlpha = o.opacity;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        for (const p of layout(text, o, v.VW, v.VH, w)) {
+            ctx.save();
+            ctx.translate(p.cx * sc, (v.VH - p.cy) * sc);
+            ctx.rotate(-p.a * Math.PI / 180);
+            ctx.fillText(text, 0, (h / 2) * sc);
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+    if ($('optFooter').checked) {
+        ctx.save();
+        ctx.font = cssFont('Helvetica', 7 * sc);
+        ctx.fillStyle = 'rgb(89,89,89)';
+        ctx.globalAlpha = 0.8;
+        ctx.fillText(footerText(), 20 * sc, (v.VH - 10) * sc);
+        ctx.restore();
     }
 }
 
+function scheduleOverlay() {
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(drawOverlay);
+}
+
+async function renderPreview() {
+    const entry = cur();
+    if (!entry) return;
+    const seq = ++renderSeq;
+    const inner = $('previewInner');
+    const cssW = Math.max(200, inner.clientWidth || 600);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const base = $('baseCanvas');
+    const tmp = document.createElement('canvas');
+    try {
+        const info = await renderEntry(entry, tmp, cssW, dpr);
+        if (seq !== renderSeq) return; // a newer render started
+        base.width = tmp.width; base.height = tmp.height;
+        base.getContext('2d').drawImage(tmp, 0, 0);
+        const ov = $('overlayCanvas');
+        ov.width = tmp.width; ov.height = tmp.height;
+        state.view = { VW: info.VW, VH: info.VH, k: info.k, dpr, R: info.R };
+        drawOverlay();
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+// ---------- Page strip ----------
+function thumbKey(e) { return e.blank ? `blank:${e.w}x${e.h}:${e.rot}` : `${e.src}:${e.idx}:${e.rot}`; }
+
+async function thumbURL(entry) {
+    const key = thumbKey(entry);
+    if (thumbCache.has(key)) return thumbCache.get(key);
+    const c = document.createElement('canvas');
+    await renderEntry(entry, c, 96, 1.5);
+    const url = c.toDataURL('image/jpeg', 0.7);
+    thumbCache.set(key, url);
+    return url;
+}
+
+// Update labels in place (never rebuild the strip while the user is mid-click)
+function updateTags() {
+    Array.from($('pageStrip').children).forEach((el, i) => {
+        const entry = state.pages[i];
+        if (!entry) return;
+        const marks = [entry.blank ? 'blank' : null, entry.wm.mode === 'custom' ? 'custom' : entry.wm.mode === 'none' ? 'no wm' : null].filter(Boolean);
+        el.querySelector('.tag').textContent = `${i + 1}${marks.length ? ' · ' + marks.join(', ') : ''}`;
+    });
+}
+
+let dragFrom = -1;
+function renderStrip() {
+    const strip = $('pageStrip');
+    strip.innerHTML = '';
+    state.pages.forEach((entry, i) => {
+        const el = document.createElement('div');
+        el.className = 'thumb' + (i === state.sel ? ' selected' : '');
+        el.draggable = true;
+        el.setAttribute('role', 'button');
+        el.setAttribute('aria-label', `Page ${i + 1}`);
+        el.tabIndex = 0;
+        el.innerHTML = '<img alt=""><span class="tag"></span>';
+        thumbURL(entry).then(url => { el.querySelector('img').src = url; });
+
+        el.addEventListener('click', () => select(i));
+        el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(i); } });
+        el.addEventListener('dragstart', ev => { dragFrom = i; el.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', String(i)); });
+        el.addEventListener('dragend', () => { dragFrom = -1; el.classList.remove('dragging'); });
+        el.addEventListener('dragover', ev => { if (dragFrom >= 0) { ev.preventDefault(); el.classList.add('drop-target'); } });
+        el.addEventListener('dragleave', () => el.classList.remove('drop-target'));
+        el.addEventListener('drop', ev => {
+            ev.preventDefault(); el.classList.remove('drop-target');
+            if (dragFrom >= 0 && dragFrom !== i) movePage(dragFrom, i);
+        });
+        strip.appendChild(el);
+    });
+    updateTags();
+    const selEl = strip.children[state.sel];
+    if (selEl && selEl.scrollIntoView) selEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+function syncPagePanel() {
+    const n = state.pages.length;
+    $('pageLabel').textContent = `Page ${state.sel + 1} / ${n}`;
+    $('pagesTitle').textContent = `Pages (${n})`;
+    $('prevPage').disabled = state.sel <= 0;
+    $('nextPage').disabled = state.sel >= n - 1;
+    $('moveLeft').disabled = state.sel <= 0;
+    $('moveRight').disabled = state.sel >= n - 1;
+    $('delPage').disabled = n <= 1;
+    const w = cur().wm;
+    $('pageWmMode').value = w.mode;
+    $('pageWmText').value = w.text;
+    show('pageWmTextGroup', w.mode === 'custom');
+}
+
+function refreshAll() {
+    syncPagePanel();
+    renderStrip();
+    renderPreview();
+}
+
+function select(i) {
+    if (i < 0 || i >= state.pages.length || i === state.sel) return;
+    state.sel = i;
+    state.outBytes = null; show('signResult', false);
+    refreshAll();
+}
+
+// ---------- Page operations ----------
+function structural() { state.outBytes = null; show('signResult', false); refreshAll(); }
+
+function movePage(from, to) {
+    const [e] = state.pages.splice(from, 1);
+    state.pages.splice(to, 0, e);
+    state.sel = to;
+    structural();
+}
+
+$('prevPage').addEventListener('click', () => select(state.sel - 1));
+$('nextPage').addEventListener('click', () => select(state.sel + 1));
+$('moveLeft').addEventListener('click', () => { if (state.sel > 0) movePage(state.sel, state.sel - 1); });
+$('moveRight').addEventListener('click', () => { if (state.sel < state.pages.length - 1) movePage(state.sel, state.sel + 1); });
+$('rotatePage').addEventListener('click', () => { cur().rot = (cur().rot + 90) % 360; structural(); });
+$('dupPage').addEventListener('click', () => {
+    state.pages.splice(state.sel + 1, 0, JSON.parse(JSON.stringify(cur())));
+    state.sel += 1; structural();
+});
+$('delPage').addEventListener('click', () => {
+    if (state.pages.length <= 1) return;
+    state.pages.splice(state.sel, 1);
+    state.sel = Math.min(state.sel, state.pages.length - 1);
+    structural();
+});
+$('reversePages').addEventListener('click', () => {
+    state.pages.reverse(); state.sel = state.pages.length - 1 - state.sel; structural();
+});
+$('resetPages').addEventListener('click', () => {
+    if (!confirm('Restore the original page order and remove added pages, rotations and per-page text?')) return;
+    state.pages = JSON.parse(JSON.stringify(state.initialPages)); state.sel = 0; structural();
+});
+$('addBlank').addEventListener('click', async () => {
+    let w = 595, h = 842;
+    try {
+        const e = cur();
+        if (e.blank) { w = e.w; h = e.h; } else {
+            const p = await state.sources[e.src].pdf.getPage(e.idx + 1);
+            const vp = p.getViewport({ scale: 1, rotation: p.rotate });
+            w = vp.width; h = vp.height;
+        }
+    } catch (err) { /* A4 fallback */ }
+    state.pages.splice(state.sel + 1, 0, { blank: true, w, h, rot: 0, wm: { mode: 'global', text: '' } });
+    state.sel += 1; structural();
+});
+$('addPdf').addEventListener('click', () => $('addPdfInput').click());
+$('addPdfInput').addEventListener('change', async () => {
+    const files = Array.from($('addPdfInput').files);
+    $('addPdfInput').value = '';
+    for (const f of files) {
+        try {
+            const src = await loadSource(f);
+            state.sources.push(src);
+            const si = state.sources.length - 1;
+            for (let i = 0; i < src.pdf.numPages; i++) state.pages.push(newEntry(si, i));
+        } catch (err) { alert(`${f.name}: ${err.message || err}`); }
+    }
+    structural();
+});
+
+// ---------- Settings wiring ----------
+[['wmSize', 'wmSizeVal', v => `${v} pt`], ['wmOpacity', 'wmOpacityVal', v => `${v}%`],
+ ['wmRotation', 'wmRotationVal', v => `${v}°`], ['wmSpacing', 'wmSpacingVal', v => `${v}%`]]
+    .forEach(([inp, out, f]) => $(inp).addEventListener('input', () => { $(out).textContent = f($(inp).value); }));
+$('wmTile').addEventListener('change', () => show('wmSpacingGroup', $('wmTile').checked));
+
+wmFields.forEach(id => {
+    const ev = ['wmText', 'recipient'].includes(id) || $(id).type === 'range' || $(id).type === 'color' ? 'input' : 'change';
+    $(id).addEventListener(ev, () => { state.outBytes = null; show('signResult', false); scheduleOverlay(); });
+});
+
+$('pageWmMode').addEventListener('change', () => {
+    cur().wm.mode = $('pageWmMode').value;
+    show('pageWmTextGroup', cur().wm.mode === 'custom');
+    if (cur().wm.mode === 'custom' && !cur().wm.text) { cur().wm.text = $('wmText').value; $('pageWmText').value = cur().wm.text; }
+    updateTags(); scheduleOverlay();
+});
+$('pageWmText').addEventListener('input', () => { cur().wm.text = $('pageWmText').value; scheduleOverlay(); });
+
+window.addEventListener('resize', () => { if (state.pages.length && $('pane-sign').classList.contains('active')) renderPreview(); });
+document.querySelectorAll('.seg-btn').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.pane === 'sign' && state.pages.length) setTimeout(renderPreview, 0);
+}));
+
+// ---------- Export ----------
 function showSignError(msg) {
     const el = $('signError');
     el.textContent = msg || '';
     el.classList.toggle('hidden', !msg);
 }
 
+// Visual frame (origin bottom-left, as shown) -> PDF user space for a page displayed with rotation R
+function toUser(vx, vy, R, UW, UH) {
+    switch (R) {
+        case 90: return { x: UW - vy, y: vx };
+        case 180: return { x: UW - vx, y: UH - vy };
+        case 270: return { x: vy, y: UH - vx };
+        default: return { x: vx, y: vy };
+    }
+}
+
+function drawVisual(page, text, vx, vy, aVisual, R, UW, UH, opts) {
+    const u = toUser(vx, vy, R, UW, UH);
+    page.drawText(text, { ...opts, x: u.x, y: u.y, rotate: PDFLib.degrees(aVisual + R) });
+}
+
+async function sha256OfSources() {
+    const hashes = [];
+    for (const s of state.sources) hashes.push(await sha256Hex(s.bytes));
+    return hashes.length === 1 ? hashes[0] : await sha256Hex(enc.encode(hashes.join(',')));
+}
+
 $('signBtn').addEventListener('click', async () => {
     showSignError('');
     const recipient = $('recipient').value.trim();
     if (!recipient) { showSignError('Enter who this PDF is issued to, so it can be traced later.'); $('recipient').focus(); return; }
-    if (!state.bytes) return;
+    if (!state.pages.length) return;
 
     const btn = $('signBtn');
     btn.disabled = true; btn.textContent = 'Working...';
     try {
-        const { PDFDocument, StandardFonts, PDFName, PDFString } = PDFLib;
-        const pdf = await PDFDocument.load(state.bytes, { ignoreEncryption: true });
+        const { PDFDocument, StandardFonts, PDFName, PDFString, degrees, rgb } = PDFLib;
+        const out = await PDFDocument.create();
 
-        const id = newTraceId();
+        for (const s of state.sources) {
+            if (!s.lib) s.lib = await PDFDocument.load(s.bytes, { ignoreEncryption: true });
+        }
+
+        const id = state.traceId;
         const passphrase = $('passphrase').value;
         const payload = {
             v: 1, id, to: recipient, note: $('purpose').value.trim(),
-            doc: state.name, ts: new Date().toISOString(),
-            src: (await sha256Hex(state.bytes)).slice(0, 16), k: passphrase ? 1 : 0
+            doc: state.sources.map(s => s.name).join(' + '), ts: new Date().toISOString(),
+            src: (await sha256OfSources()).slice(0, 16), n: state.pages.length, k: passphrase ? 1 : 0
         };
         const payloadB64 = b64url(enc.encode(JSON.stringify(payload)));
         const token = `MUT1.${payloadB64}.${await signPayload(payloadB64, passphrase)}`;
 
-        const bold = $('wmBold').checked;
-        const fontName = $('wmFont').value;
-        const key = fontName === 'TimesRoman' ? (bold ? 'TimesRomanBold' : 'TimesRoman')
-            : fontName === 'Courier' ? (bold ? 'CourierBold' : 'Courier')
-                : (bold ? 'HelveticaBold' : 'Helvetica');
-        const wmFont = await pdf.embedFont(StandardFonts[key]);
-        const smallFont = await pdf.embedFont(StandardFonts.Helvetica);
+        const o = readWm();
+        const wmFont = await out.embedFont(StandardFonts[o.fontKey]);
+        const smallFont = await out.embedFont(StandardFonts.Helvetica);
+        const color = hexToRgb(o.color);
+        const total = state.pages.length;
 
-        const wmText = $('wmText').value.trim();
-        const wmOpts = {
-            font: wmFont, size: +$('wmSize').value, opacity: +$('wmOpacity').value / 100,
-            angle: +$('wmRotation').value, color: hexToRgb($('wmColor').value),
-            tile: $('wmTile').checked, spacing: +$('wmSpacing').value
-        };
-        const footer = `Issued to: ${recipient}  |  ID: ${id}  |  ${payload.ts.slice(0, 10)}`;
+        for (let i = 0; i < total; i++) {
+            const e = state.pages[i];
+            let page;
+            if (e.blank) {
+                page = out.addPage([e.w, e.h]);
+            } else {
+                const [cp] = await out.copyPages(state.sources[e.src].lib, [e.idx]);
+                page = out.addPage(cp);
+            }
+            const R = (((page.getRotation().angle + e.rot) % 360) + 360) % 360;
+            page.setRotation(degrees(R));
+            const { width: UW, height: UH } = page.getSize();
+            const VW = R % 180 ? UH : UW, VH = R % 180 ? UW : UH;
 
-        pdf.getPages().forEach(page => {
-            if (wmText) applyWatermark(page, wmText, wmOpts);
+            const text = pageText(e, i + 1, total);
+            if (text) {
+                const w = wmFont.widthOfTextAtSize(text, o.size);
+                const h = wmFont.heightAtSize(o.size) * 0.7;
+                for (const p of layout(text, o, VW, VH, w)) {
+                    const a = p.a * Math.PI / 180;
+                    const x0 = p.cx - (w / 2) * Math.cos(a) + (h / 2) * Math.sin(a);
+                    const y0 = p.cy - (w / 2) * Math.sin(a) - (h / 2) * Math.cos(a);
+                    drawVisual(page, text, x0, y0, p.a, R, UW, UH, { size: o.size, font: wmFont, color, opacity: o.opacity });
+                }
+            }
             if ($('optFooter').checked) {
-                page.drawText(footer, { x: 20, y: 10, size: 7, font: smallFont, color: PDFLib.rgb(0.35, 0.35, 0.35), opacity: 0.8 });
+                const f = `Issued to: ${recipient}  |  ID: ${id}  |  ${payload.ts.slice(0, 10)}`;
+                drawVisual(page, f, 20, 10, 0, R, UW, UH, { size: 7, font: smallFont, color: rgb(0.35, 0.35, 0.35), opacity: 0.8 });
             }
             if ($('optHidden').checked) {
                 // Real, extractable text but practically invisible; survives metadata stripping
-                page.drawText(token, { x: 4, y: 2, size: 1, font: smallFont, color: PDFLib.rgb(0, 0, 0), opacity: 0.01 });
+                drawVisual(page, token, 4, 2, 0, R, UW, UH, { size: 1, font: smallFont, color: rgb(0, 0, 0), opacity: 0.01 });
             }
-        });
+        }
 
-        const info = pdf.getInfoDict();
+        const info = out.getInfoDict();
         info.set(PDFName.of(INFO_KEY), PDFString.of(token));
         info.set(PDFName.of('MUTraceID'), PDFString.of(id));
-        pdf.setSubject(`Issued to ${recipient} (${id})`);
-        pdf.setModificationDate(new Date());
+        out.setSubject(`Issued to ${recipient} (${id})`);
+        out.setProducer('Offline Toolkit');
+        out.setModificationDate(new Date());
 
-        state.outBytes = await pdf.save();
-        state.outName = state.name.replace(/\.pdf$/i, '') + `_${id}.pdf`;
+        state.outBytes = await out.save();
+        const base = state.sources[0].name.replace(/\.pdf$/i, '');
+        state.outName = `${base}_${id}.pdf`;
 
-        addLog({ id, to: recipient, note: payload.note, doc: state.name, ts: payload.ts, src: payload.src, signed: passphrase ? 'HMAC' : 'checksum' });
+        addLog({ id, to: recipient, note: payload.note, doc: payload.doc, ts: payload.ts, src: payload.src, signed: passphrase ? 'HMAC' : 'checksum' });
 
+        const custom = state.pages.filter(p => p.wm.mode !== 'global').length;
         renderKv($('signSummary'), [
             ['Issued to', esc(recipient)],
             ['Trace ID', `<code>${esc(id)}</code>`],
+            ['Pages', `${total}${custom ? ` (${custom} with page-specific watermark)` : ''}`],
             ['Signature', passphrase ? 'HMAC (passphrase protected)' : '<span class="status-warn">Checksum only (no passphrase)</span>'],
             ['Stored in', ['PDF metadata', $('optHidden').checked ? 'hidden text on every page' : null, $('optFooter').checked ? 'visible footer' : null].filter(Boolean).join(', ')],
             ['Output', `${esc(state.outName)} (${fmtSize(state.outBytes.length)})`]
         ]);
-        $('signResult').classList.remove('hidden');
+        show('signResult', true);
         $('signResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Next export is a new issuance: fresh ID (preview updates too)
+        state.traceId = newTraceId();
+        scheduleOverlay();
+        state.lastId = id;
     } catch (err) {
         console.error(err);
         showSignError(`Could not process this PDF: ${err.message || err}. If the text contains non-Latin characters, the built-in PDF fonts cannot draw them.`);
     } finally {
-        btn.disabled = false; btn.textContent = 'Watermark & Sign PDF';
+        btn.disabled = false; btn.textContent = 'Assemble, Watermark & Sign';
     }
 });
 
