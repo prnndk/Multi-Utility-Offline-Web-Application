@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
 </head>
 
 <body>
@@ -173,15 +174,44 @@
                             <input type="text" id="purpose" placeholder="e.g. Pengambilan toga DWP ITS" maxlength="120">
                         </div>
                         <div class="setting-group">
-                            <label for="passphrase">Signing passphrase (optional, recommended)</label>
+                            <label for="passphrase">Signing passphrase (optional, required for digital signature)</label>
                             <input type="password" id="passphrase" autocomplete="off" placeholder="Keep this secret">
                             <p class="setting-hint">With a passphrase the signature is an HMAC: nobody can forge or edit it
-                                without the passphrase. Without one it is only a checksum.</p>
+                                without the passphrase. Without one it is only a checksum. The same passphrase unlocks your
+                                digital-signature key.</p>
                         </div>
                         <div class="setting-group checkbox-row">
                             <label><input type="checkbox" id="optFooter" checked> Visible footer with recipient &amp; ID on every page</label>
                             <label><input type="checkbox" id="optHidden" checked> Hidden signature text on every page</label>
                         </div>
+                        <div class="setting-group checkbox-row">
+                            <label><input type="checkbox" id="optDigital"> Apply my digital signature (certificate-based, PDF standard)</label>
+                        </div>
+                        <div class="digi-box hidden" id="digiBox">
+                            <p class="setting-hint" id="idStatus"></p>
+                            <div id="idCreate">
+                                <div class="setting-group">
+                                    <label for="signerName">Signer name (shown in the certificate)</label>
+                                    <input type="text" id="signerName" maxlength="80" placeholder="e.g. Budi Santoso">
+                                </div>
+                                <div class="setting-group">
+                                    <label for="signerEmail">Signer email (optional)</label>
+                                    <input type="text" id="signerEmail" maxlength="80" placeholder="budi@example.com">
+                                </div>
+                            </div>
+                            <div class="setting-group">
+                                <label for="signReason">Reason (optional)</label>
+                                <input type="text" id="signReason" maxlength="120" placeholder="e.g. Approved for release">
+                            </div>
+                            <div class="toolbar-group">
+                                <button type="button" class="tool-btn" id="idExport">Export identity</button>
+                                <button type="button" class="tool-btn" id="idImport">Import identity</button>
+                                <button type="button" class="tool-btn" id="idCert">Export certificate</button>
+                                <button type="button" class="tool-btn danger" id="idDelete">Delete identity</button>
+                            </div>
+                            <input type="file" id="idImportInput" accept=".json,application/json" hidden>
+                        </div>
+
 
                         <p class="form-error hidden" id="signError" role="alert"></p>
                         <button class="compress-btn" id="signBtn">Assemble, Watermark &amp; Sign</button>
@@ -244,6 +274,7 @@
         </footer>
     </div>
 
+    <script src="digisign.js"></script>
     <script src="app.js"></script>
 </body>
 
